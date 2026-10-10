@@ -638,12 +638,14 @@ function toast(msg, kind) {
   el.className = 'toast' + (kind ? ' ' + kind : '');
   el.textContent = msg;
   $('toastWrap').appendChild(el);
+  // 错误提示停留久一点，否则一闪而过用户根本看不到
+  const ttl = kind === 'err' ? 8000 : 2600;
   setTimeout(function () {
     el.style.transition = 'opacity 0.3s, transform 0.3s';
     el.style.opacity = '0';
     el.style.transform = 'translateY(10px)';
     setTimeout(function () { el.remove(); }, 300);
-  }, 2600);
+  }, ttl);
 }
 
 function showLoading(text) {
@@ -676,9 +678,16 @@ async function call(action, params) {
 }
 
 async function post(action, body) {
+  /**
+   * ⚠️ Content-Type 必须用 text/plain，不能用 application/json。
+   * application/json 会触发浏览器 CORS 预检 (OPTIONS)，而 GAS Web App
+   * 不返回 Access-Control-Allow-Headers，预检直接失败 → net::ERR_FAILED，
+   * 所有 POST（保存/发布/删除）全部无效。
+   * text/plain 属于「简单请求」，不触发预检，GAS 的 doPost 照样能读 e.postData。
+   */
   const res = await fetch(GAS_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ action: action }, body || {}))
   });
   if (!res.ok) throw new Error('HTTP ' + res.status);

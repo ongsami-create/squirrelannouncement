@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Squirrel 公告系统</title>
+<style>
+/* ==========================================================================
+   Squirrel Announcement System — macOS Big Sur 风格
+   设计规范沿用 Squirrel 系列：玻璃顶栏 / 圆角 10-14px / SF Pro 字体
+   Logo 靠最左，透底无白底，不用 traffic lights
+   ========================================================================== */
+
+:root {
+  /* macOS 系统色 */
+  --blue:      #007AFF;
+  --green:     #30D158;
+  --orange:    #FF9F0A;
+  --red:       #FF3B30;
+  --purple:    #AF52DE;
+  --teal:      #1FB6C4;
+
+  --text-primary:   #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary:  #8e8e93;
+
+  --bg-page:      #f5f5f7;
+  --bg-card:      rgba(255,255,255,0.72);
+  --bg-card-solid:#ffffff;
+  --bg-sidebar:   rgba(246,246,248,0.72);
+  --bg-hover:     rgba(0,0,0,0.04);
+  --bg-active:    rgba(0,122,255,0.10);
+
+  --glass-border: rgba(0,0,0,0.08);
+  --separator:     rgba(0,0,0,0.08);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.14);
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+          "Helvetica Neue", "Microsoft YaHei", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ---------- 玻璃顶栏 ---------- */
+.topbar {
+  height: 64px;
+  background: var(--bg-card);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 0.5px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  position: relative;
+  z-index: 100;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.brand img { height: 64px; background: transparent; }
+.brand-text {
+  font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap;
+}
+
+/* 入口切换 */
+.view-switch {
+  display: flex; gap: 2px; padding: 3px;
+  background: rgba(0,0,0,0.05); border-radius: 10px; margin-left: 8px;
+}
+.view-switch button {
+  border: 0; background: transparent; padding: 6px 16px;
+  border-radius: 8px; font-family: var(--font); font-size: 13px;
+  font-weight: 500; color: var(--text-secondary); cursor: pointer;
+  transition: all 0.15s ease; white-space: nowrap;
+}
+.view-switch button:hover { color: var(--text-primary); }
+.view-switch button.active {
+  background: var(--bg-card-solid); color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.topbar-spacer { flex: 1; }
+
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+/* 未读红点 */
+.bell {
+  position: relative; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; cursor: pointer; border: 0; background: rgba(0,0,0,0.04);
+  transition: background 0.15s ease;
+}
+.bell:hover { background: rgba(0,0,0,0.08); }
+.bell-badge {
+  position: absolute; top: 1px; right: 1px; min-width: 17px; height: 17px;
+  background: var(--red); color: #fff; border-radius: 9px;
+  font-size: 10px; font-weight: 700; display: flex;
+  align-items: center; justify-content: center; padding: 0 4px;
+  border: 1.5px solid var(--bg-page);
+}
+
+/* ---------- 按钮 ---------- */
+.btn {
+  border: 0; font-family: var(--font); font-size: 13px; font-weight: 500;
+  padding: 7px 15px; border-radius: var(--radius-sm); cursor: pointer;
+  transition: all 0.15s ease; display: inline-flex; align-items: center;
+  gap: 6px; white-space: nowrap; line-height: 1.4;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #0062cc; }
+
+.btn-secondary { background: rgba(0,0,0,0.06); color: var(--text-primary); }
+.btn-secondary:hover:not(:disabled) { background: rgba(0,0,0,0.10); }
+
+.btn-success { background: var(--green); color: #fff; }
+.btn-success:hover:not(:disabled) { background: #28a745; }
+
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #d70015; }
+
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+
+.btn-sm { padding: 5px 11px; font-size: 12px; }
+
+/* ---------- 布局 ---------- */
+.layout { display: flex; height: calc(100vh - 64px); }
+
+.sidebar {
+  width: 208px; flex-shrink: 0; background: var(--bg-sidebar);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-right: 0.5px solid var(--glass-border);
+  padding: 14px 10px; overflow-y: auto;
+}
+
+.side-section-title {
+  font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 10px 10px 6px;
+}
+
+.side-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text-primary); cursor: pointer;
+  transition: background 0.15s ease; user-select: none;
+}
+.side-item:hover { background: var(--bg-hover); }
+.side-item.active { background: var(--bg-active); color: var(--blue); font-weight: 500; }
+.side-item-count {
+  margin-left: auto; font-size: 11px; font-weight: 600;
+  color: var(--text-tertiary); font-variant-numeric: tabular-nums;
+}
+.side-item.active .side-item-count { color: var(--blue); }
+
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-draft     { background: var(--text-tertiary); }
+.dot-scheduled { background: var(--orange); }
+.dot-published { background: var(--green); }
+.dot-archived  { background: var(--purple); }
+.dot-expired   { background: var(--red); }
+
+.main { flex: 1; overflow-y: auto; padding: 22px 26px; }
+
+/* ---------- 工具条 ---------- */
+.toolbar {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+
+.search-box { position: relative; flex: 1; min-width: 200px; max-width: 400px; }
+.search-box input {
+  width: 100%; padding: 8px 12px 8px 32px; font-family: var(--font);
+  font-size: 13px; border: 0.5px solid var(--glass-border);
+  border-radius: var(--radius-sm); background: var(--bg-card-solid);
+  outline: none; transition: border-color 0.15s ease;
+}
+.search-box input:focus { border-color: var(--blue); }
+.search-box::before {
+  content: '🔍'; position: absolute; left: 10px; top: 50%;
+  transform: translateY(-50%); font-size: 12px; opacity: 0.5;
+}
+
+.select {
+  padding: 8px 12px; font-family: var(--font); font-size: 13px;
+  border: 0.5px solid var(--glass-border); border-radius: var(--radius-sm);
+  background: var(--bg-card-solid); color: var(--text-primary);
+  cursor: pointer; outline: none;
+}
+
+/* ---------- 列表 ---------- */
+.list { display: flex; flex-direction: column; gap: 8px; }
+
+.row {
+  background: var(--bg-card); backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0.5px solid var(--glass-border); border-radius: var(--radius-md);
+  padding: 13px 16px; display: flex; align-items: center; gap: 14px;
+  transition: all 0.15s ease;
+}
+.row:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.row.pinned { border-left: 3px solid var(--orange); padding-left: 13px; }
+
+.row-main { flex: 1; min-width: 0; }
+.row-title {
+  font-size: 14px; font-weight: 600; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 8px;
+}
+.row-title-text {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row-meta {
+  font-size: 12px; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.row-meta-item { display: flex; align-items: center; gap: 4px; }
+.row-preview {
+  font-size: 12px; color: var(--text-tertiary); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 600px;
+}
+
+.row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ---------- 徽章 ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 20px; font-size: 11px;
+  font-weight: 600; white-space: nowrap; flex-shrink: 0;
+}
+.badge-draft     { background: rgba(142,142,147,0.15); color: #6e6e73; }
+.badge-scheduled { background: rgba(255,159,10,0.15); color: #b26a00; }
+.badge-published { background: rgba(48,209,88,0.15); color: #1a7f37; }
+.badge-archived  { background: rgba(175,82,222,0.15); color: #7d2a9e; }
+.badge-expired   { background: rgba(255,59,48,0.12); color: #c4271e; }
+
+.badge-dept {
+  background: rgba(0,122,255,0.10); color: var(--blue); font-weight: 500;
+}
+.badge-priority-high   { background: rgba(255,59,48,0.12); color: #c4271e; }
+.badge-priority-normal { background: rgba(142,142,147,0.13); color: #6e6e73; }
+.badge-pinned { background: rgba(255,159,10,0.18); color: #b26a00; }
+.badge-bilingual { background: rgba(31,182,196,0.14); color: #0e7c86; }
+
+/* ---------- 空状态 ---------- */
+.empty {
+  text-align: center; padding: 70px 20px; color: var(--text-tertiary);
+}
+.empty-icon { font-size: 46px; margin-bottom: 14px; opacity: 0.45; }
+.empty-text { font-size: 15px; margin-bottom: 6px; color: var(--text-secondary); }
+.empty-hint { font-size: 13px; }
+
+/* ---------- 加载 ---------- */
+.loading-overlay {
+  position: fixed; inset: 0; background: rgba(255,255,255,0.7);
+  backdrop-filter: blur(3px); z-index: 900;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px;
+}
+.spinner {
+  width: 28px; height: 28px; border: 2.5px solid rgba(0,0,0,0.12);
+  border-top-color: var(--blue); border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 13px; color: var(--text-secondary); }
+
+/* ---------- 编辑页 ---------- */
+.editor-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.28);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 800; display: flex; align-items: center;
+  justify-content: center; padding: 24px;
+}
+.editor {
+  background: var(--bg-page); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); width: 100%; max-width: 880px;
+  max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;
+}
+.editor-header {
+  padding: 16px 22px; border-bottom: 0.5px solid var(--separator);
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+}
+.editor-header h2 { font-size: 16px; font-weight: 600; }
+.editor-header .spacer { flex: 1; }
+
+.editor-body { flex: 1; overflow-y: auto; padding: 20px 22px; }
+
+.form-group { margin-bottom: 20px; }
+.form-label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600; margin-bottom: 8px;
+  color: var(--text-primary);
+}
+.req { color: var(--red); font-weight: 700; }
+.form-hint { font-size: 12px; color: var(--text-tertiary); font-weight: 400; margin-left: auto; }
+
+.input, .textarea {
+  width: 100%; padding: 9px 12px; font-family: var(--font); font-size: 13px;
+  border: 0.5px solid var(--glass-border); border-radius: var(--radius-sm);
+  background: var(--bg-card-solid); color: var(--text-primary);
+  outline: none; transition: border-color 0.15s ease;
+}
+.input:focus, .textarea:focus { border-color: var(--blue); }
+.textarea { resize: vertical; min-height: 150px; line-height: 1.6; }
+.input.error, .textarea.error { border-color: var(--red); }
+
+/* 部门多选 */
+.dept-grid {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.dept-chip {
+  padding: 7px 14px; border-radius: 20px; cursor: pointer;
+  border: 1px solid var(--glass-border); background: var(--bg-card-solid);
+  font-size: 13px; font-weight: 500; user-select: none;
+  transition: all 0.15s ease;
+}
+.dept-chip:hover { border-color: var(--blue); }
+.dept-chip.on {
+  background: var(--blue); color: #fff; border-color: var(--blue);
+}
+.dept-chip.all.on { background: var(--purple); border-color: var(--purple); }
+
+/* 语言切换 */
+.lang-switch { display: flex; gap: 2px; padding: 3px; background: rgba(0,0,0,0.05); border-radius: 9px; }
+.lang-switch button {
+  border: 0; background: transparent; padding: 6px 16px; border-radius: 7px;
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  color: var(--text-secondary); cursor: pointer; transition: all 0.15s ease;
+}
+.lang-switch button.active {
+  background: var(--bg-card-solid); color: var(--text-primary); box-shadow: var(--shadow-sm);
+}
+
+/* 语言 TAB */
+.lang-tabs {
+  display: flex; gap: 4px; border-bottom: 0.5px solid var(--separator);
+  margin-bottom: 14px;
+}
+.lang-tab {
+  padding: 9px 18px; font-size: 13px; font-weight: 500;
+  cursor: pointer; color: var(--text-secondary); position: relative;
+  border-bottom: 2px solid transparent; margin-bottom: -0.5px;
+  transition: all 0.15s ease; user-select: none;
+}
+.lang-tab:hover { color: var(--text-primary); }
+.lang-tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+.lang-tab-pane { display: none; }
+.lang-tab-pane.active { display: block; }
+
+/* 复选框行 */
+.check-row {
+  display: flex; align-items: center; gap: 9px; cursor: pointer;
+  padding: 9px 13px; border-radius: var(--radius-sm);
+  border: 0.5px solid var(--glass-border); background: var(--bg-card-solid);
+  transition: all 0.15s ease;
+}
+.check-row:hover { border-color: var(--blue); }
+.check-row input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--blue); }
+.check-row-label { font-size: 13px; font-weight: 500; }
+
+.range-panel {
+  margin-top: 12px; padding: 14px; border-radius: var(--radius-sm);
+  background: rgba(0,122,255,0.05); border: 0.5px solid rgba(0,122,255,0.18);
+  display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+}
+.range-field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 150px; }
+.range-field label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.range-preview {
+  flex-basis: 100%; font-size: 12px; color: var(--text-secondary);
+  padding-top: 9px; border-top: 1px dashed var(--separator); line-height: 1.6;
+}
+
+/* 底部按钮条 */
+.editor-footer {
+  padding: 13px 22px; border-top: 0.5px solid var(--separator);
+  display: flex; gap: 10px; justify-content: flex-end;
+  background: rgba(246,246,248,0.9); flex-shrink: 0;
+}
+.editor-footer .spacer { flex: 1; }
+
+/* ---------- 预览 / 详情弹窗 ---------- */
+.detail-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.28);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 850; display: flex; align-items: center;
+  justify-content: center; padding: 24px;
+}
+.detail {
+  background: var(--bg-page); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); width: 100%; max-width: 720px;
+  max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
+}
+.detail-header { padding: 22px 26px 16px; border-bottom: 0.5px solid var(--separator); }
+.detail-title { font-size: 20px; font-weight: 700; margin-bottom: 10px; line-height: 1.35; }
+.detail-badges { display: flex; gap: 7px; flex-wrap: wrap; }
+.detail-meta {
+  font-size: 12px; color: var(--text-secondary); margin-top: 10px;
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+.detail-body { flex: 1; overflow-y: auto; padding: 20px 26px; }
+.detail-section-title {
+  font-size: 12px; font-weight: 700; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.05em; margin: 18px 0 8px;
+}
+.detail-section-title:first-child { margin-top: 0; }
+.detail-content { font-size: 14px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; }
+.detail-footer {
+  padding: 13px 22px; border-top: 0.5px solid var(--separator);
+  display: flex; gap: 10px; justify-content: flex-end;
+  background: rgba(246,246,248,0.9);
+}
+
+/* ---------- 公告墙 ---------- */
+.wall { max-width: 900px; margin: 0 auto; }
+.wall-hero {
+  background: var(--bg-card); backdrop-filter: blur(20px);
+  border: 0.5px solid var(--glass-border); border-radius: var(--radius-lg);
+  padding: 24px 26px; margin-bottom: 18px;
+}
+.wall-hero h1 { font-size: 24px; font-weight: 700; margin-bottom: 5px; }
+.wall-hero p { font-size: 13px; color: var(--text-secondary); }
+
+.wall-card {
+  background: var(--bg-card); backdrop-filter: blur(20px);
+  border: 0.5px solid var(--glass-border); border-radius: var(--radius-md);
+  padding: 18px 20px; margin-bottom: 10px; cursor: pointer;
+  transition: all 0.18s ease; position: relative;
+}
+.wall-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.wall-card.pinned { border-left: 3px solid var(--orange); padding-left: 18px; }
+.wall-card.unread::before {
+  content: ''; position: absolute; top: 18px; right: 18px;
+  width: 8px; height: 8px; background: var(--red); border-radius: 50%;
+}
+.wall-card-title {
+  font-size: 16px; font-weight: 600; margin-bottom: 8px;
+  display: flex; align-items: flex-start; gap: 9px; padding-right: 18px;
+}
+.wall-card-title-en { font-size: 13px; color: var(--text-secondary); font-weight: 500; margin-bottom: 9px; }
+.wall-card-excerpt {
+  font-size: 13px; color: var(--text-secondary); line-height: 1.6;
+  overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.wall-card-foot {
+  display: flex; align-items: center; gap: 9px; margin-top: 11px;
+  padding-top: 11px; border-top: 0.5px solid var(--separator);
+  font-size: 12px; color: var(--text-tertiary); flex-wrap: wrap;
+}
+
+/* ---------- Toast ---------- */
+.toast-wrap {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  z-index: 1000; display: flex; flex-direction: column; gap: 8px;
+  align-items: center;
+}
+.toast {
+  background: rgba(28,28,30,0.92); backdrop-filter: blur(20px);
+  color: #fff; padding: 10px 20px; border-radius: var(--radius-md);
+  font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg);
+  animation: toastIn 0.25s cubic-bezier(0.2,0,0,1); max-width: 420px;
+}
+.toast.err  { background: rgba(255,59,48,0.95); }
+.toast.ok   { background: rgba(48,209,88,0.95); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------- 确认框 ---------- */
+.confirm-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.28);
+  backdrop-filter: blur(6px); z-index: 950;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.confirm {
+  background: var(--bg-card-solid); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: 24px; max-width: 400px; width: 100%;
+}
+.confirm-title { font-size: 16px; font-weight: 600; margin-bottom: 9px; }
+.confirm-text { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.6; }
+.confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+@media (max-width: 768px) {
+  .sidebar { width: 168px; }
+  .main { padding: 16px; }
+  .brand-text { display: none; }
+  .row { flex-wrap: wrap; }
+  .row-actions { width: 100%; justify-content: flex-end; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= 玻璃顶栏 ================= -->
+<header class="topbar">
+  <div class="brand">
+    <img src="assets/squirrel-care.png" alt="Squirrel" onerror="this.style.display='none';">
+    <span class="brand-text">Squirrel 公告系统</span>
+  </div>
+
+  <div class="view-switch">
+    <button id="viewManageBtn" class="active" onclick="switchView('manage')">公告管理</button>
+    <button id="viewWallBtn" onclick="switchView('wall')">公告墙</button>
+  </div>
+
+  <div class="topbar-spacer"></div>
+
+  <div class="topbar-actions" id="topbarActions"></div>
+</header>
+
+<!-- ================= 主体 ================= -->
+<div class="layout">
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="side-section-title">状态</div>
+    <div id="statusNav"></div>
+    <div class="side-section-title">部门</div>
+    <div id="deptNav"></div>
+  </aside>
+
+  <!-- 主区域 -->
+  <main class="main" id="mainArea"></main>
+</div>
+
+<!-- Toast 容器 -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ==========================================================================
+   全局配置
+   ========================================================================== */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycb_SQUIRREL_ANNOUNCEMENT_PLACEHOLDER/exec';
+
+// ⚠️ 部门清单与 backadmin 完全一致（用户 2026-10-10 规定）
+const DEPARTMENTS = [
+  { key: 'admin',    zh: '管理员', en: 'Admin Dept' },
+  { key: 'agent',    zh: '代理',   en: 'Agent' },
+  { key: 'designer', zh: '设计师', en: 'Designer' },
+  { key: 'logistics',zh: '物流',   en: 'Logistics' },
+  { key: 'sales',    zh: '销售',   en: 'Sales' }
+];
+
+const STATUS_META = {
+  draft:     { zh: '草稿',   cls: 'badge-draft',     dot: 'dot-draft' },
+  scheduled: { zh: '已排期', cls: 'badge-scheduled', dot: 'dot-scheduled' },
+  published: { zh: '已发布', cls: 'badge-published', dot: 'dot-published' },
+  archived:  { zh: '已归档', cls: 'badge-archived',  dot: 'dot-archived' },
+  expired:   { zh: '已过期', cls: 'badge-expired',   dot: 'dot-expired' }
+};
+
+const READ_KEY = 'squirrel_announcement_read';
+
+/* ==========================================================================
+   状态
+   ========================================================================== */
+let state = {
+  view: 'manage',          // manage | wall
+  announcements: [],
+  stats: { total: 0, draft: 0, scheduled: 0, published: 0, archived: 0, expired: 0 },
+  filterStatus: 'all',
+  filterDept: 'all',
+  search: '',
+  editing: null,           // 正在编辑的公告对象
+  draftDirty: false
+};
+
+let readIds = loadReadIds();
+
+
+/* ==========================================================================
+   工具函数
+   ========================================================================== */
+function $(id) { return document.getElementById(id); }
+
+function deptLabel(key) {
+  const d = DEPARTMENTS.find(function (x) { return x.key === key; });
+  return d ? d.zh : key;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function todayStr() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + day;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + day;
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + day + ' ' + hh + ':' + mi;
+}
+
+function toast(msg, kind) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  el.textContent = msg;
+  $('toastWrap').appendChild(el);
+  setTimeout(function () {
+    el.style.transition = 'opacity 0.3s, transform 0.3s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(10px)';
+    setTimeout(function () { el.remove(); }, 300);
+  }, 2600);
+}
+
+function showLoading(text) {
+  const el = document.createElement('div');
+  el.className = 'loading-overlay';
+  el.id = 'loadingOverlay';
+  el.innerHTML = '<div class="spinner"></div><div class="loading-text">' + esc(text || '加载中...') + '</div>';
+  document.body.appendChild(el);
+}
+function hideLoading() {
+  const el = $('loadingOverlay');
+  if (el) el.remove();
+}
+
+
+/* ==========================================================================
+   GAS 通信
+   ========================================================================== */
+async function call(action, params) {
+  const url = GAS_URL + '?action=' + encodeURIComponent(action);
+  let qs = '';
+  if (params) {
+    qs = Object.keys(params).map(function (k) {
+      return '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('');
+  }
+  const res = await fetch(url + qs, { method: 'GET' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+async function post(action, body) {
+  const res = await fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.assign({ action: action }, body || {}))
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+const isPlaceholder = GAS_URL.indexOf('PLACEHOLDER') >= 0;
+
+
+/* ==========================================================================
+   已读记录（localStorage，纯前端）
+   ========================================================================== */
+function loadReadIds() {
+  try { return JSON.parse(localStorage.getItem(READ_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function saveReadIds() {
+  try { localStorage.setItem(READ_KEY, JSON.stringify(readIds)); } catch (e) {}
+}
+function markRead(id) {
+  if (readIds.indexOf(id) < 0) { readIds.push(id); saveReadIds(); }
+}
+function unreadCount() {
+  return state.announcements.filter(function (a) {
+    return a.status === 'published' && readIds.indexOf(a.id) < 0;
+  }).length;
+}
+
+
+/* ==========================================================================
+   加载数据
+   ========================================================================== */
+async function loadList() {
+  if (isPlaceholder) {
+    state.announcements = [];
+    state.stats = { total: 0, draft: 0, scheduled: 0, published: 0, archived: 0, expired: 0 };
+    return;
+  }
+  showLoading('加载公告...');
+  try {
+    const r = await call('getList');
+    if (r.ok) {
+      state.announcements = r.announcements || [];
+      state.stats = r.stats || state.stats;
+    } else {
+      toast(r.error || '加载失败', 'err');
+    }
+  } catch (e) {
+    toast('网络错误：' + e.message, 'err');
+  } finally {
+    hideLoading();
+  }
+}
+
+
+/* ==========================================================================
+   渲染
+   ========================================================================== */
+function render() {
+  renderTopbarActions();
+  renderSidebar();
+  if (state.view === 'manage') renderManageList();
+  else renderWall();
+}
+
+function renderTopbarActions() {
+  const box = $('topbarActions');
+  if (state.view === 'wall') {
+    const n = unreadCount();
+    // badge 绝对定位在 bell 上，所以外面包一层 relative 容器
+    box.innerHTML = '<div style="position:relative;display:flex;align-items:center">' +
+      '<button class="bell" onclick="switchView(\'manage\')" title="公告管理">📢</button>' +
+      (n > 0 ? '<span class="bell-badge">' + (n > 99 ? '99+' : n) + '</span>' : '') +
+      '</div>';
+  } else {
+    box.innerHTML = '<button class="btn btn-primary" onclick="openEditor(null)">＋ 新增公告</button>';
+  }
+}
+
+function renderSidebar() {
+  // 状态导航
+  const s = state.stats;
+  const items = [
+    { key: 'all',       label: '全部',        count: s.total },
+    { key: 'published', label: '已发布',      count: s.published },
+    { key: 'scheduled', label: '已排期',      count: s.scheduled },
+    { key: 'draft',     label: '草稿',        count: s.draft },
+    { key: 'archived',  label: '已归档',      count: s.archived },
+    { key: 'expired',   label: '已过期',      count: s.expired }
+  ];
+  $('statusNav').innerHTML = items.map(function (it) {
+    const dotCls = it.key === 'all' ? '' :
+      'dot ' + (STATUS_META[it.key] ? STATUS_META[it.key].dot : '');
+    return '<div class="side-item' + (state.filterStatus === it.key ? ' active' : '') +
+      '" onclick="setFilterStatus(\'' + it.key + '\')">' +
+      (dotCls ? '<span class="' + dotCls + '"></span>' : '<span class="dot" style="background:transparent"></span>') +
+      '<span>' + it.label + '</span>' +
+      '<span class="side-item-count">' + (it.count || 0) + '</span></div>';
+  }).join('');
+
+  // 部门导航
+  const depts = [{ key: 'all', label: '全部部门' }].concat(DEPARTMENTS);
+  $('deptNav').innerHTML = depts.map(function (d) {
+    return '<div class="side-item' + (state.filterDept === d.key ? ' active' : '') +
+      '" onclick="setFilterDept(\'' + d.key + '\')">' +
+      '<span>' + d.label + '</span></div>';
+  }).join('');
+}
+
+function filtered() {
+  let list = state.announcements;
+  if (state.filterStatus !== 'all') {
+    list = list.filter(function (a) { return a.status === state.filterStatus; });
+  }
+  if (state.filterDept !== 'all') {
+    list = list.filter(function (a) {
+      return a.allCompany || (a.departments || []).indexOf(state.filterDept) >= 0;
+    });
+  }
+  if (state.search) {
+    const kw = state.search.toLowerCase();
+    list = list.filter(function (a) {
+      return ((a.zh && a.zh.title) + ' ' + (a.en && a.en.title) + ' ' +
+              (a.zh && a.zh.content) + ' ' + (a.en && a.en.content))
+        .toLowerCase().indexOf(kw) >= 0;
+    });
+  }
+  return list;
+}
+
+
+/* ---------- 管理列表 ---------- */
+function renderManageList() {
+  const list = filtered();
+
+  const toolbar =
+    '<div class="toolbar">' +
+      '<div class="search-box">' +
+        '<input type="text" id="searchInput" placeholder="搜索标题或内容..." value="' + esc(state.search) + '">' +
+      '</div>' +
+      '<select class="select" onchange="setSort(this.value)">' +
+        '<option value="updatedAt">按编辑时间</option>' +
+        '<option value="publishedAt">按发布日期</option>' +
+        '<option value="title">按标题</option>' +
+      '</select>' +
+      '<button class="btn btn-secondary btn-sm" onclick="loadList().then(render)">🔄 刷新</button>' +
+    '</div>';
+
+  if (!list.length) {
+    $('mainArea').innerHTML = toolbar +
+      '<div class="empty">' +
+        '<div class="empty-icon">📢</div>' +
+        '<div class="empty-text">暂无公告</div>' +
+        '<div class="empty-hint">点击右上角「新增公告」开始创建</div>' +
+      '</div>';
+    bindSearch();
+    return;
+  }
+
+  const rows = list.map(function (a) { return renderRow(a); }).join('');
+  $('mainArea').innerHTML = toolbar + '<div class="list">' + rows + '</div>';
+  bindSearch();
+}
+
+function renderRow(a) {
+  const meta = STATUS_META[a.status] || STATUS_META.draft;
+  const title = (a.zh && a.zh.title) || (a.en && a.en.title) || '(无标题)';
+
+  const deptText = a.allCompany ? '全公司' :
+    (a.departments || []).map(deptLabel).join('、');
+
+  const rangeText = a.hasDateRange && a.dateRange
+    ? a.dateRange.start + ' ~ ' + a.dateRange.end : '';
+
+  const excerpt = ((a.zh && a.zh.content) || '')
+    .replace(/\n/g, ' ').slice(0, 70);
+
+  // 操作按钮
+  let actions = '';
+  if (a.status === 'draft') {
+    actions += '<button class="btn btn-success btn-sm" onclick="doPublish(\'' + a.id + '\')">发布</button>';
+  } else if (a.status === 'published' || a.status === 'scheduled') {
+    actions += '<button class="btn btn-secondary btn-sm" onclick="doUnpublish(\'' + a.id + '\')">撤回</button>';
+  } else if (a.status === 'archived' || a.status === 'expired') {
+    actions += '<button class="btn btn-secondary btn-sm" onclick="doRestore(\'' + a.id + '\')">重新发布</button>';
+  }
+  actions += '<button class="btn btn-secondary btn-sm" onclick="openPreview(\'' + a.id + '\')">预览</button>';
+  actions += '<button class="btn btn-secondary btn-sm" onclick="openEditor(\'' + a.id + '\')">修改</button>';
+  actions += '<button class="btn btn-ghost btn-sm" onclick="doTogglePin(\'' + a.id + '\')" title="置顶">' +
+    (a.pinned ? '📌' : '📍') + '</button>';
+  actions += '<button class="btn btn-ghost btn-sm" onclick="doDelete(\'' + a.id + '\')" title="删除">🗑</button>';
+
+  return '<div class="row' + (a.pinned ? ' pinned' : '') + '">' +
+    '<div class="row-main">' +
+      '<div class="row-title">' +
+        '<span class="row-title-text">' + esc(title) + '</span>' +
+        '<span class="badge ' + meta.cls + '">' + meta.zh + '</span>' +
+        (a.pinned ? '<span class="badge badge-pinned">置顶</span>' : '') +
+        (a.priority === 1 ? '<span class="badge badge-priority-high">紧急</span>' : '') +
+        (a.language === 'zh-en' ? '<span class="badge badge-bilingual">中英</span>' : '') +
+      '</div>' +
+      '<div class="row-meta">' +
+        '<span class="row-meta-item">🏢 ' + esc(deptText) + '</span>' +
+        (rangeText ? '<span class="row-meta-item">📅 ' + esc(rangeText) + '</span>' : '') +
+        '<span class="row-meta-item">✏️ 编辑 ' + fmtDateTime(a.updatedAt) + '</span>' +
+        '<span class="row-meta-item">📤 发布 ' + (a.publishedAt ? fmtDateTime(a.publishedAt) : '未发布') + '</span>' +
+      '</div>' +
+      (excerpt ? '<div class="row-preview">' + esc(excerpt) + '</div>' : '') +
+    '</div>' +
+    '<div class="row-actions">' + actions + '</div>' +
+  '</div>';
+}
+
+function bindSearch() {
+  const el = $('searchInput');
+  if (!el) return;
+  let timer = null;
+  el.oninput = function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      state.search = el.value.trim();
+      render();
+      const e2 = $('searchInput');
+      if (e2) { e2.focus(); e2.setSelectionRange(e2.value.length, e2.value.length); }
+    }, 250);
+  };
+}
+
+
+/* ---------- 公告墙 ---------- */
+function renderWall() {
+  const list = state.announcements.filter(function (a) {
+    if (a.status !== 'published' && a.status !== 'expired') return false;
+    if (state.filterDept !== 'all') {
+      if (!a.allCompany && (a.departments || []).indexOf(state.filterDept) < 0) return false;
+    }
+    if (state.search) {
+      const kw = state.search.toLowerCase();
+      const t = ((a.zh && a.zh.title) + ' ' + (a.en && a.en.title)).toLowerCase();
+      if (t.indexOf(kw) < 0) return false;
+    }
+    return true;
+  });
+
+  const toolbar =
+    '<div class="toolbar">' +
+      '<div class="search-box">' +
+        '<input type="text" id="wallSearchInput" placeholder="搜索公告..." value="' + esc(state.search) + '">' +
+      '</div>' +
+      '<select class="select" onchange="setFilterDept(this.value)">' +
+        '<option value="all">全部部门</option>' +
+        DEPARTMENTS.map(function (d) {
+          return '<option value="' + d.key + '"' +
+            (state.filterDept === d.key ? ' selected' : '') + '>' + d.zh + '</option>';
+        }).join('') +
+      '</select>' +
+    '</div>';
+
+  if (!list.length) {
+    $('mainArea').innerHTML =
+      '<div class="wall"><div class="wall-hero">' +
+        '<h1>公司公告</h1><p>所有已发布的公告都会显示在这里</p>' +
+      '</div>' + toolbar +
+      '<div class="empty"><div class="empty-icon">📭</div>' +
+      '<div class="empty-text">暂无公告</div></div></div>';
+    bindWallSearch();
+    return;
+  }
+
+  const cards = list.map(function (a) {
+    const title = (a.zh && a.zh.title) || (a.en && a.en.title) || '(无标题)';
+    const titleEn = (a.en && a.en.title) ? a.en.title : '';
+    const content = (a.zh && a.zh.content) || '';
+    const excerpt = content.replace(/\n/g, ' ').slice(0, 110);
+    const isRead = readIds.indexOf(a.id) >= 0;
+    const deptText = a.allCompany ? '全公司' :
+      (a.departments || []).map(deptLabel).join('、');
+
+    return '<div class="wall-card' + (a.pinned ? ' pinned' : '') +
+        (isRead ? '' : ' unread') + '" onclick="openPreview(\'' + a.id + '\')">' +
+      '<div class="wall-card-title">' +
+        (a.pinned ? '<span>📌</span>' : '') +
+        (a.priority === 1 ? '<span>🔴</span>' : '') +
+        '<span>' + esc(title) + '</span>' +
+      '</div>' +
+      (a.language === 'zh-en' && titleEn ? '<div class="wall-card-title-en">' + esc(titleEn) + '</div>' : '') +
+      '<div class="wall-card-excerpt">' + esc(excerpt) + '</div>' +
+      '<div class="wall-card-foot">' +
+        '<span>🏢 ' + esc(deptText) + '</span>' +
+        '<span>📤 ' + (a.publishedAt ? fmtDate(a.publishedAt) : '—') + '</span>' +
+        (a.hasDateRange && a.dateRange ? '<span>⏳ 至 ' + esc(a.dateRange.end) + '</span>' : '') +
+        (a.status === 'expired' ? '<span class="badge badge-expired">已过期</span>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  $('mainArea').innerHTML =
+    '<div class="wall">' +
+      '<div class="wall-hero">' +
+        '<h1>公司公告</h1>' +
+        '<p>共 ' + list.length + ' 条' + (unreadCount() ? ' · ' + unreadCount() + ' 条未读' : '') + '</p>' +
+      '</div>' + toolbar + cards +
+    '</div>';
+
+  bindWallSearch();
+}
+
+function bindWallSearch() {
+  const el = $('wallSearchInput');
+  if (!el) return;
+  let timer = null;
+  el.oninput = function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      state.search = el.value.trim();
+      render();
+      const e2 = $('wallSearchInput');
+      if (e2) { e2.focus(); e2.setSelectionRange(e2.value.length, e2.value.length); }
+    }, 250);
+  };
+}
+
+
+/* ==========================================================================
+   视图切换 / 筛选
+   ========================================================================== */
+function switchView(v) {
+  state.view = v;
+  $('viewManageBtn').className = v === 'manage' ? 'active' : '';
+  $('viewWallBtn').className   = v === 'wall'   ? 'active' : '';
+  // 公告墙不显示侧边栏的状态筛选
+  document.querySelector('.sidebar').style.display = v === 'wall' ? 'none' : '';
+  render();
+}
+function setFilterStatus(k) { state.filterStatus = k; render(); }
+function setFilterDept(k)   { state.filterDept = k; render(); }
+function setSort(s) {
+  // 前端本地重排：置顶优先已在后端排序里，这里按所选字段再排一次
+  state.sort = s;
+  state.announcements.sort(function (a, b) {
+    if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
+    if (s === 'priority' && b.priority !== a.priority) return b.priority - a.priority;
+    if (s === 'title') return String((a.zh && a.zh.title) || '')
+      .localeCompare(String((b.zh && b.zh.title) || ''), 'zh');
+    return String(b[s] || '').localeCompare(String(a[s] || ''));
+  });
+  render();
+}
+
+
+/* ==========================================================================
+   预览弹窗
+   ========================================================================== */
+function openPreview(id) {
+  const a = state.announcements.find(function (x) { return x.id === id; });
+  if (!a) return;
+
+  markRead(id);
+  renderTopbarActions();
+
+  const meta = STATUS_META[a.status] || STATUS_META.draft;
+  const title = (a.zh && a.zh.title) || (a.en && a.en.title) || '(无标题)';
+  const deptText = a.allCompany ? '全公司' :
+    (a.departments || []).map(deptLabel).join('、');
+
+  let body = '';
+  if (a.zh && a.zh.title) {
+    body += '<div class="detail-section-title">中文</div>';
+    body += '<div style="font-size:16px;font-weight:600;margin-bottom:10px">' + esc(a.zh.title) + '</div>';
+    body += '<div class="detail-content">' + esc(a.zh.content) + '</div>';
+  }
+  if (a.language === 'zh-en' && a.en && (a.en.title || a.en.content)) {
+    body += '<div class="detail-section-title">English</div>';
+    if (a.en.title) {
+      body += '<div style="font-size:16px;font-weight:600;margin-bottom:10px">' + esc(a.en.title) + '</div>';
+    }
+    body += '<div class="detail-content">' + esc(a.en.content) + '</div>';
+  }
+
+  const el = document.createElement('div');
+  el.className = 'detail-overlay';
+  el.innerHTML =
+    '<div class="detail">' +
+      '<div class="detail-header">' +
+        '<div class="detail-title">' + esc(title) + '</div>' +
+        '<div class="detail-badges">' +
+          '<span class="badge ' + meta.cls + '">' + meta.zh + '</span>' +
+          (a.pinned ? '<span class="badge badge-pinned">置顶</span>' : '') +
+          (a.priority === 1 ? '<span class="badge badge-priority-high">紧急</span>' : '') +
+          (a.language === 'zh-en' ? '<span class="badge badge-bilingual">中英</span>' : '') +
+          '<span class="badge badge-dept">' + esc(deptText) + '</span>' +
+        '</div>' +
+        '<div class="detail-meta">' +
+          '<span>✏️ 最后编辑：' + fmtDateTime(a.updatedAt) + '</span>' +
+          '<span>📤 发布日期：' + (a.publishedAt ? fmtDateTime(a.publishedAt) : '未发布') + '</span>' +
+          (a.hasDateRange && a.dateRange ?
+            '<span>📅 生效期间：' + a.dateRange.start + ' ~ ' + a.dateRange.end + '</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="detail-body">' + body + '</div>' +
+      '<div class="detail-footer">' +
+        '<button class="btn btn-secondary" onclick="this.closest(\'.detail-overlay\').remove()">关闭</button>' +
+        (state.view === 'manage' ?
+          '<button class="btn btn-primary" onclick="this.closest(\'.detail-overlay\').remove();openEditor(\'' + a.id + '\')">修改</button>' : '') +
+      '</div>' +
+    '</div>';
+  el.onclick = function (e) { if (e.target === el) el.remove(); };
+  document.body.appendChild(el);
+}
+
+
+/* ==========================================================================
+   编辑器
+   ========================================================================== */
+function openEditor(id) {
+  let a = null;
+  if (id) {
+    a = state.announcements.find(function (x) { return x.id === id; });
+    if (!a) { toast('公告不存在', 'err'); return; }
+  }
+
+  state.editing = a ? JSON.parse(JSON.stringify(a)) : {
+    id: null, departments: [], allCompany: true,
+    language: 'zh', hasDateRange: false, dateRange: { start: '', end: '' },
+    zh: { title: '', content: '' }, en: { title: '', content: '' },
+    pinned: false, priority: 2, status: 'draft'
+  };
+  state.draftDirty = false;
+  state.editorTab = 'zh';
+
+  const el = document.createElement('div');
+  el.className = 'editor-overlay';
+  el.id = 'editorOverlay';
+  el.innerHTML = renderEditorHtml(a);
+  el.onclick = function (e) { if (e.target === el) confirmCancelEditor(); };
+  document.body.appendChild(el);
+  bindEditor(a);
+}
+
+function renderEditorHtml(a) {
+  const d = state.editing;
+  const isNew = !a;
+  const lang = d.language;
+  const bilingual = lang === 'zh-en';
+
+  // 部门 chips
+  const allOn = d.departments.length === 0;
+  const deptChips =
+    '<div class="dept-chip all' + (allOn ? ' on' : '') + '" data-dept="__all__" onclick="toggleDept(\'__all__\')">全公司</div>' +
+    DEPARTMENTS.map(function (x) {
+      const on = d.departments.indexOf(x.key) >= 0;
+      return '<div class="dept-chip' + (on ? ' on' : '') + '" data-dept="' + x.key +
+        '" onclick="toggleDept(\'' + x.key + '\')">' + x.zh + '</div>';
+    }).join('');
+
+  // 日期范围面板
+  const rangePanel = d.hasDateRange ?
+    '<div class="range-panel">' +
+      '<div class="range-field">' +
+        '<label>开始日期（当天 00:00 生效）</label>' +
+        '<input type="date" class="input" id="rangeStart" value="' + esc(d.dateRange.start) + '" onchange="onRangeChange()">' +
+      '</div>' +
+      '<div class="range-field">' +
+        '<label>结束日期（当天 23:59 过期）</label>' +
+        '<input type="date" class="input" id="rangeEnd" value="' + esc(d.dateRange.end) + '" onchange="onRangeChange()">' +
+      '</div>' +
+      '<div class="range-preview" id="rangePreview"></div>' +
+    '</div>' : '';
+
+  return '<div class="editor">' +
+    '<div class="editor-header">' +
+      '<h2>' + (isNew ? '新增公告' : '修改公告') + '</h2>' +
+      '<div class="spacer"></div>' +
+      (a ? '<span class="badge ' + (STATUS_META[a.status] || STATUS_META.draft).cls + '">' +
+           (STATUS_META[a.status] || STATUS_META.draft).zh + '</span>' : '') +
+    '</div>' +
+
+    '<div class="editor-body">' +
+
+      // 语言
+      '<div class="form-group">' +
+        '<div class="form-label">语言<span class="form-hint">选「中文+英文」时下方出现英文 TAB</span></div>' +
+        '<div class="lang-switch">' +
+          '<button class="' + (lang === 'zh' ? 'active' : '') + '" onclick="setLang(\'zh\')">中文</button>' +
+          '<button class="' + (bilingual ? 'active' : '') + '" onclick="setLang(\'zh-en\')">中文 + 英文</button>' +
+        '</div>' +
+      '</div>' +
+
+      // 部门
+      '<div class="form-group">' +
+        '<div class="form-label">选择部门<span class="form-hint">不选 = 全公司</span></div>' +
+        '<div class="dept-grid">' + deptChips + '</div>' +
+      '</div>' +
+
+      // 日期范围
+      '<div class="form-group">' +
+        '<div class="form-label">有效期（可选）</div>' +
+        '<label class="check-row">' +
+          '<input type="checkbox" id="hasRange" ' + (d.hasDateRange ? 'checked' : '') +
+            ' onchange="toggleRange()">' +
+          '<span class="check-row-label">设置有效期 / 定时发布</span>' +
+        '</label>' +
+        rangePanel +
+      '</div>' +
+
+      // 优先级
+      '<div class="form-group">' +
+        '<div class="form-label">优先级</div>' +
+        '<div class="lang-switch">' +
+          '<button class="' + (d.priority === 2 ? 'active' : '') + '" onclick="setPriority(2)">普通</button>' +
+          '<button class="' + (d.priority === 1 ? 'active' : '') + '" onclick="setPriority(1)">🔴 紧急</button>' +
+        '</div>' +
+      '</div>' +
+
+      // 内容
+      '<div class="form-group">' +
+        '<div class="form-label">公告内容<span class="form-hint"><span style="color:var(--red)">*</span> 标题必填</span></div>' +
+
+        (bilingual ?
+          '<div class="lang-tabs">' +
+            '<div class="lang-tab active" data-tab="zh" onclick="switchTab(\'zh\')">中文</div>' +
+            '<div class="lang-tab" data-tab="en" onclick="switchTab(\'en\')">English</div>' +
+          '</div>' : '') +
+
+        '<div class="lang-tab-pane active" data-pane="zh">' +
+          '<input type="text" class="input" id="zhTitle" placeholder="公告标题（中文）" ' +
+            'value="' + esc(d.zh.title) + '" oninput="markDirty()" style="margin-bottom:10px">' +
+          '<textarea class="textarea" id="zhContent" placeholder="公告内容（支持换行）" oninput="markDirty()">' +
+            esc(d.zh.content) + '</textarea>' +
+        '</div>' +
+
+        (bilingual ?
+          '<div class="lang-tab-pane" data-pane="en">' +
+            '<input type="text" class="input" id="enTitle" placeholder="Title (English)" ' +
+              'value="' + esc(d.en.title) + '" oninput="markDirty()" style="margin-bottom:10px">' +
+            '<textarea class="textarea" id="enContent" placeholder="Content (English)" oninput="markDirty()">' +
+              esc(d.en.content) + '</textarea>' +
+          '</div>' : '') +
+      '</div>' +
+
+    '</div>' +
+
+    '<div class="editor-footer">' +
+      '<button class="btn btn-ghost" onclick="confirmCancelEditor()">取消</button>' +
+      '<div class="spacer"></div>' +
+      '<button class="btn btn-secondary" onclick="saveEditor(false)">保存</button>' +
+      '<button class="btn btn-primary" onclick="saveEditor(true)">保存并发布</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function bindEditor(a) {
+  if (a && state.editing.hasDateRange) updateRangePreview();
+  // 粘贴后同步（富文本粘贴可能绕过 oninput）
+  ['zhTitle','zhContent','enTitle','enContent'].forEach(function (id) {
+    const el = $(id);
+    if (el) el.addEventListener('input', markDirty);
+  });
+}
+
+function markDirty() { state.draftDirty = true; }
+
+function switchTab(tab) {
+  state.editorTab = tab;
+  document.querySelectorAll('.lang-tab').forEach(function (t) {
+    t.className = 'lang-tab' + (t.dataset.tab === tab ? ' active' : '');
+  });
+  document.querySelectorAll('.lang-tab-pane').forEach(function (p) {
+    p.className = 'lang-tab-pane' + (p.dataset.pane === tab ? ' active' : '');
+  });
+}
+
+function reRenderEditor(existingId) {
+  const el = $('editorOverlay');
+  const keepScroll = el ? el.querySelector('.editor-body').scrollTop : 0;
+  if (el) el.remove();
+  const a = existingId ? state.announcements.find(function (x) { return x.id === existingId; }) : null;
+  openEditor(existingId);
+  const body = document.querySelector('.editor-body');
+  if (body) body.scrollTop = keepScroll;
+}
+
+function setLang(lang) {
+  collectEditor();
+  state.editing.language = lang;
+  reRenderEditor(state.editing.id);
+}
+
+function setPriority(p) {
+  collectEditor();
+  state.editing.priority = p;
+  reRenderEditor(state.editing.id);
+}
+
+function toggleDept(key) {
+  collectEditor();
+  const d = state.editing;
+  if (key === '__all__') {
+    d.departments = [];
+  } else {
+    const i = d.departments.indexOf(key);
+    if (i >= 0) d.departments.splice(i, 1);
+    else d.departments.push(key);
+  }
+  d.allCompany = d.departments.length === 0;
+  reRenderEditor(d.id);
+}
+
+function toggleRange() {
+  const on = $('hasRange').checked;
+  collectEditor();
+  state.editing.hasDateRange = on;
+  if (on && !state.editing.dateRange.start) state.editing.dateRange.start = todayStr();
+  reRenderEditor(state.editing.id);
+}
+
+function onRangeChange() {
+  const s = $('rangeStart').value;
+  const e = $('rangeEnd').value;
+  if (s && e && s > e) {
+    toast('开始日期不能晚于结束日期', 'err');
+    // 自动交换，避免用户卡住
+    $('rangeStart').value = e;
+    $('rangeEnd').value = s;
+    state.editing.dateRange = { start: e, end: s };
+  } else {
+    state.editing.dateRange = { start: s, end: e };
+  }
+  state.draftDirty = true;
+  updateRangePreview();
+}
+
+function updateRangePreview() {
+  const el = $('rangePreview');
+  if (!el) return;
+  const d = state.editing;
+  const today = todayStr();
+  const r = d.dateRange;
+
+  if (!r.start && !r.end) {
+    el.innerHTML = '⚠️ 请填写开始和结束日期，否则公告发布后不会自动过期。';
+    return;
+  }
+  if (!r.start || !r.end) {
+    el.innerHTML = '⚠️ 需要同时填写开始和结束日期。';
+    return;
+  }
+
+  let phase = '';
+  if (today < r.start) {
+    phase = '📅 这条公告将于 <b>' + r.start + '</b> 自动发布，在此之前不会出现在公告墙上。';
+  } else if (today > r.end) {
+    phase = '⏰ 这条公告已于 <b>' + r.end + '</b> 自动过期。';
+  } else {
+    phase = '✅ 这条公告当前<b>正在生效</b>（' + r.start + ' ~ ' + r.end + '），' +
+            r.end + ' 之后自动过期。';
+  }
+  el.innerHTML = phase;
+}
+
+/** 从表单采集当前值到 state.editing（不触发重渲染） */
+function collectEditor() {
+  const d = state.editing;
+  const zt = $('zhTitle'), zc = $('zhContent');
+  const et = $('enTitle'), ec = $('enContent');
+  if (zt) d.zh.title = zt.value;
+  if (zc) d.zh.content = zc.value;
+  if (et) d.en.title = et.value;
+  if (ec) d.en.content = ec.value;
+  const hr = $('hasRange');
+  if (hr) d.hasDateRange = hr.checked;
+  return d;
+}
+
+/* ---------- 保存 ---------- */
+async function saveEditor(alsoPublish) {
+  collectEditor();
+  const d = state.editing;
+
+  // 校验
+  if (!d.zh.title.trim() && !d.en.title.trim()) {
+    toast('标题不能为空', 'err');
+    const zt = $('zhTitle'); if (zt) zt.classList.add('error');
+    return;
+  }
+  if (d.language === 'zh-en' && !d.en.title.trim()) {
+    toast('中英模式必须填写英文标题', 'err');
+    switchTab('en');
+    const et = $('enTitle'); if (et) et.classList.add('error');
+    return;
+  }
+  if (d.hasDateRange && (!d.dateRange.start || !d.dateRange.end)) {
+    toast('请填写完整的开始和结束日期', 'err');
+    return;
+  }
+  // 自动交换颠倒的日期
+  if (d.hasDateRange && d.dateRange.start > d.dateRange.end) {
+    d.dateRange = { start: d.dateRange.end, end: d.dateRange.start };
+  }
+
+  if (isPlaceholder) {
+    const el = $('editorOverlay'); if (el) el.remove();
+    state.draftDirty = false;
+    toast('Demo 模式：请先配置 GAS_URL', 'err');
+    return;
+  }
+
+  showLoading('保存中...');
+  try {
+    const r = await post('save', { id: d.id, data: d });
+    hideLoading();
+    if (!r.ok) { toast(r.error || '保存失败', 'err'); return; }
+
+    const saved = r.announcement;
+
+    if (alsoPublish) {
+      const p = await post('publish', { id: saved.id });
+      if (p.ok) {
+        toast(p.to === 'scheduled'
+          ? '已保存，' + saved.dateRange.start + ' 自动发布'
+          : '已保存并发布', 'ok');
+      } else {
+        toast('已保存，但发布失败：' + p.error, 'err');
+      }
+    } else {
+      toast('已保存', 'ok');
+    }
+
+    const el = $('editorOverlay'); if (el) el.remove();
+    state.draftDirty = false;
+    await loadList();
+    render();
+  } catch (e) {
+    hideLoading();
+    toast('网络错误：' + e.message, 'err');
+  }
+}
+
+function confirmCancelEditor() {
+  if (!state.draftDirty) {
+    const el = $('editorOverlay'); if (el) el.remove();
+    return;
+  }
+  confirmDialog('放弃修改？', '当前修改尚未保存，关闭后将会丢失。', function () {
+    const el = $('editorOverlay'); if (el) el.remove();
+    state.draftDirty = false;
+  });
+}
+
+
+/* ==========================================================================
+   行内操作
+   ========================================================================== */
+async function doPublish(id) {
+  if (isPlaceholder) { toast('Demo 模式', 'err'); return; }
+  showLoading('发布中...');
+  try {
+    const r = await post('publish', { id: id });
+    hideLoading();
+    if (r.ok) {
+      toast(r.to === 'scheduled' ? '已设为定时发布' : '已发布', 'ok');
+      await loadList(); render();
+    } else toast(r.error || '发布失败', 'err');
+  } catch (e) { hideLoading(); toast('网络错误：' + e.message, 'err'); }
+}
+
+async function doUnpublish(id) {
+  if (isPlaceholder) { toast('Demo 模式', 'err'); return; }
+  const yes = await confirmDialog('撤回这条公告？', '撤回后公告会变成草稿，员工将看不到它。');
+  if (!yes) return;
+  showLoading('处理中...');
+  try {
+    const res = await post('unpublish', { id: id });
+    hideLoading();
+    if (res.ok) { toast('已撤回为草稿', 'ok'); await loadList(); render(); }
+    else toast(res.error || '操作失败', 'err');
+  } catch (e) { hideLoading(); toast('网络错误：' + e.message, 'err'); }
+}
+
+async function doRestore(id) {
+  if (isPlaceholder) { toast('Demo 模式', 'err'); return; }
+  showLoading('处理中...');
+  try {
+    const res = await post('restore', { id: id });
+    hideLoading();
+    if (res.ok) { toast('已重新发布', 'ok'); await loadList(); render(); }
+    else toast(res.error || '操作失败', 'err');
+  } catch (e) { hideLoading(); toast('网络错误：' + e.message, 'err'); }
+}
+
+async function doTogglePin(id) {
+  if (isPlaceholder) { toast('Demo 模式', 'err'); return; }
+  try {
+    const res = await post('togglePin', { id: id });
+    if (res.ok) {
+      toast(res.announcement.pinned ? '已置顶' : '已取消置顶', 'ok');
+      await loadList(); render();
+    } else toast(res.error || '操作失败', 'err');
+  } catch (e) { toast('网络错误：' + e.message, 'err'); }
+}
+
+function doDelete(id) {
+  if (isPlaceholder) { toast('Demo 模式', 'err'); return; }
+  const a = state.announcements.find(function (x) { return x.id === id; });
+  const title = a ? ((a.zh && a.zh.title) || '(无标题)') : '';
+  confirmDialog('删除这条公告？', '「' + title + '」将被移到 Google Drive 回收站，可随时还原。', async function () {
+    showLoading('删除中...');
+    try {
+      const res = await post('delete', { id: id });
+      hideLoading();
+      if (res.ok) { toast('已删除（可在 Drive 回收站还原）', 'ok'); await loadList(); render(); }
+      else toast(res.error || '删除失败', 'err');
+    } catch (e) { hideLoading(); toast('网络错误：' + e.message, 'err'); }
+  });
+}
+
+
+/* ==========================================================================
+   通用确认框
+   ========================================================================== */
+function confirmDialog(title, text, onYes) {
+  return new Promise(function (resolve) {
+    const el = document.createElement('div');
+    el.className = 'confirm-overlay';
+    el.innerHTML =
+      '<div class="confirm">' +
+        '<div class="confirm-title">' + esc(title) + '</div>' +
+        '<div class="confirm-text">' + esc(text) + '</div>' +
+        '<div class="confirm-actions">' +
+          '<button class="btn btn-secondary" data-a="no">取消</button>' +
+          '<button class="btn btn-danger" data-a="yes">确定</button>' +
+        '</div>' +
+      '</div>';
+    el.onclick = function (e) {
+      const t = e.target;
+      if (t === el || t.dataset.a === 'no') { el.remove(); resolve(false); }
+      if (t.dataset.a === 'yes') {
+        el.remove(); resolve(true);
+        if (onYes) setTimeout(onYes, 0);
+      }
+    };
+    document.body.appendChild(el);
+  });
+}
+
+
+/* ==========================================================================
+   离开未保存提醒
+   ========================================================================== */
+window.addEventListener('beforeunload', function (e) {
+  if (state.draftDirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+
+/* ==========================================================================
+   启动
+   ========================================================================== */
+(async function init() {
+  if (isPlaceholder) {
+    toast('当前为 Demo 模式，配置 GAS_URL 后即可使用', 'err');
+  }
+  await loadList();
+  render();
+  // 公告墙定时刷新状态（定时发布/自动过期）
+  setInterval(async function () {
+    if (document.getElementById('editorOverlay')) return;
+    await loadList();
+    render();
+  }, 120000);
+})();
+</script>
+</body>
+</html>

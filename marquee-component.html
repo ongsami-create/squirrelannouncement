@@ -1,0 +1,373 @@
+/* ==========================================================================
+ * Squirrel 公告跑马灯组件 — 供 Squirrel Designer 顶栏嵌入
+ * ==========================================================================
+ *
+ * 【怎么用 — 3 步】
+ *
+ * 第 1 步：把下面 <style> 内容复制到 Squirrel Designer index.html 的 <style> 里
+ * 第 2 步：把下面 <script> 内容复制到 index.html 的最后一个 <script> 里
+ * 第 3 步：在 header 结构里加一行（.header-left 和 .header-right 之间）
+ *
+ *         <div class="squirrel-marquee-wrap">
+ *           <div id="squirrelMarquee" class="squirrel-marquee"></div>
+ *           <span class="squirrel-marquee-badge" id="squirrelMarqueeBadge" hidden>0</span>
+ *         </div>
+ *
+ * 然后在登录成功后调用一次：  SQMarquee.init({ dept: '' });   // dept 留空 = 显示全公司
+ *
+ * 【数据来源】
+ * GET <GAS_URL>?action=getMarquee&dept=<部门key>&limit=5
+ * 只返回正在生效的公告，极轻量。
+ *
+ * 【注意】
+ * - dept 传 backadmin 的部门 key：admin / agent / designer / logistics / sales
+ * - 定时发布和自动过期由 GAS 端判定，前端不用自己算
+ * - 点击跑马灯 → 弹出公告详情弹窗（中英对照）
+ * ========================================================================== */
+
+<style>
+.squirrel-marquee-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    max-width: 560px;
+    margin: 0 16px;
+}
+
+.squirrel-marquee {
+    height: 34px;
+    background: rgba(255, 159, 10, 0.10);
+    border: 0.5px solid rgba(255, 159, 10, 0.28);
+    border-radius: 17px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    cursor: pointer;
+    padding: 0 14px;
+    gap: 8px;
+    transition: background 0.15s ease;
+}
+.squirrel-marquee:hover { background: rgba(255, 159, 10, 0.16); }
+.squirrel-marquee:empty, .squirrel-marquee.hidden { display: none; }
+
+.squirrel-marquee-icon { font-size: 13px; flex-shrink: 0; }
+
+.squirrel-marquee-track {
+    display: flex;
+    gap: 32px;
+    white-space: nowrap;
+    overflow: hidden;
+    flex: 1;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+}
+
+.squirrel-marquee-item {
+    font-size: 13px;
+    color: var(--text-primary, #1d1d1f);
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    animation: sqMarqueeScroll 22s linear infinite;
+}
+.squirrel-marquee-track:hover .squirrel-marquee-item { animation-play-state: paused; }
+
+.squirrel-marquee-item.urgent { color: #c4271e; font-weight: 600; }
+.squirrel-marquee-item::after {
+    content: '·';
+    color: var(--text-tertiary, #8e8e93);
+    margin-left: 26px;
+    font-weight: 400;
+}
+
+@keyframes sqMarqueeScroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
+/* 未读角标 */
+.squirrel-marquee-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 17px;
+    height: 17px;
+    background: #FF3B30;
+    color: #fff;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    pointer-events: none;
+}
+.squirrel-marquee-badge[hidden] { display: none; }
+
+/* ---------- 公告详情弹窗 ---------- */
+.sq-modal-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.sq-modal {
+    background: #f5f5f7;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.14);
+    width: 100%;
+    max-width: 680px;
+    max-height: 84vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.sq-modal-head {
+    padding: 20px 24px 15px;
+    border-bottom: 0.5px solid rgba(0,0,0,0.08);
+}
+.sq-modal-title {
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.35;
+    margin-bottom: 10px;
+    color: #1d1d1f;
+}
+.sq-modal-meta {
+    font-size: 12px;
+    color: #6e6e73;
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.sq-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 24px;
+}
+.sq-modal-section {
+    font-size: 11px;
+    font-weight: 700;
+    color: #8e8e93;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 16px 0 8px;
+}
+.sq-modal-section:first-child { margin-top: 0; }
+.sq-modal-subtitle {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #1d1d1f;
+}
+.sq-modal-content {
+    font-size: 14px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #1d1d1f;
+}
+.sq-modal-foot {
+    padding: 12px 20px;
+    border-top: 0.5px solid rgba(0,0,0,0.08);
+    display: flex;
+    justify-content: flex-end;
+    background: rgba(246,246,248,0.9);
+}
+.sq-modal-btn {
+    border: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    background: rgba(0,0,0,0.06);
+    color: #1d1d1f;
+}
+.sq-modal-btn:hover { background: rgba(0,0,0,0.10); }
+
+@media (max-width: 900px) {
+    .squirrel-marquee-wrap { display: none; }
+}
+</style>
+
+<script>
+/* ==========================================================================
+ * SQMarquee — 公告跑马灯
+ * ========================================================================== */
+const SQMarquee = (function () {
+
+  // ⚠️ 部署后替换成公告系统的 GAS URL
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycb_SQUIRREL_ANNOUNCEMENT_PLACEHOLDER/exec';
+
+  const READ_KEY = 'squirrel_announcement_read';
+  let cache = [];
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function loadRead() {
+    try { return JSON.parse(localStorage.getItem(READ_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function markRead(id) {
+    const r = loadRead();
+    if (r.indexOf(id) < 0) { r.push(id); localStorage.setItem(READ_KEY, JSON.stringify(r)); }
+  }
+
+  async function init(opt) {
+    opt = opt || {};
+    const dept = opt.dept || '';
+    const limit = opt.limit || 5;
+
+    try {
+      const res = await fetch(GAS_URL + '?action=getMarquee&dept=' +
+        encodeURIComponent(dept) + '&limit=' + limit);
+      const data = await res.json();
+      if (!data.ok) return;
+      cache = data.items || [];
+      render(cache);
+      updateBadge(cache);
+    } catch (e) {
+      console.warn('[SQMarquee] 加载失败:', e.message);
+    }
+  }
+
+  function render(items) {
+    const el = document.getElementById('squirrelMarquee');
+    if (!el) return;
+
+    if (!items.length) {
+      el.classList.add('hidden');
+      el.innerHTML = '';
+      return;
+    }
+    el.classList.remove('hidden');
+
+    const read = loadRead();
+    const inner = items.map(function (it) {
+      const unread = read.indexOf(it.id) < 0;
+      const cls = 'squirrel-marquee-item' + (it.priority === 1 ? ' urgent' : '');
+      const dot = unread ? '🔴 ' : (it.priority === 1 ? '🔴 ' : '');
+      return '<span class="' + cls + '" data-id="' + esc(it.id) + '">' +
+        dot + esc(it.title) +
+        (it.end ? ' <span style="opacity:0.55;font-weight:400">（至 ' + esc(it.end) + '）</span>' : '') +
+        '</span>';
+    }).join('');
+
+    // 内容复制一份用于无缝循环
+    el.innerHTML =
+      '<span class="squirrel-marquee-icon">📢</span>' +
+      '<div class="squirrel-marquee-track">' + inner + inner + '</div>';
+
+    el.onclick = function (e) {
+      const item = e.target.closest('.squirrel-marquee-item');
+      if (item) openModal(item.dataset.id);
+    };
+  }
+
+  function updateBadge(items) {
+    const b = document.getElementById('squirrelMarqueeBadge');
+    if (!b) return;
+    const read = loadRead();
+    const n = items.filter(function (i) { return read.indexOf(i.id) < 0; }).length;
+    if (n > 0) { b.textContent = n > 99 ? '99+' : n; b.hidden = false; }
+    else b.hidden = true;
+  }
+
+  async function openModal(id) {
+    const item = cache.find(function (x) { return x.id === id; });
+    if (!item) return;
+
+    try {
+      const res = await fetch(GAS_URL + '?action=getOne&id=' + encodeURIComponent(id));
+      const data = await res.json();
+      if (!data.ok) return;
+      const a = data.announcement;
+      markRead(id);
+      updateBadge(cache);
+
+      let body = '';
+      if (a.zh && a.zh.title) {
+        body += '<div class="sq-modal-section">中文</div>';
+        body += '<div class="sq-modal-subtitle">' + esc(a.zh.title) + '</div>';
+        body += '<div class="sq-modal-content">' + esc(a.zh.content) + '</div>';
+      }
+      if (a.language === 'zh-en' && a.en && (a.en.title || a.en.content)) {
+        body += '<div class="sq-modal-section">English</div>';
+        if (a.en.title) {
+          body += '<div class="sq-modal-subtitle">' + esc(a.en.title) + '</div>';
+        }
+        body += '<div class="sq-modal-content">' + esc(a.en.content) + '</div>';
+      }
+
+      const mask = document.createElement('div');
+      mask.className = 'sq-modal-mask';
+      mask.innerHTML =
+        '<div class="sq-modal">' +
+          '<div class="sq-modal-head">' +
+            '<div class="sq-modal-title">' + esc(item.title) + '</div>' +
+            '<div class="sq-modal-meta">' +
+              (item.end ? '<span>⏳ 有效至 ' + esc(item.end) + '</span>' : '') +
+              '<span>📤 发布于 ' + esc((a.publishedAt || '').slice(0, 10)) + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="sq-modal-body">' + body + '</div>' +
+          '<div class="sq-modal-foot">' +
+            '<button class="sq-modal-btn" data-close>关闭</button>' +
+          '</div>' +
+        '</div>';
+
+      mask.onclick = function (e) {
+        if (e.target === mask || e.target.dataset.close !== undefined) mask.remove();
+      };
+      document.body.appendChild(mask);
+
+    } catch (e) {
+      console.warn('[SQMarquee] 打开详情失败:', e.message);
+    }
+  }
+
+  return { init: init, refresh: function (o) { return init(o); } };
+})();
+</script>
+
+<!--
+==========================================================================
+【植入 Squirrel Designer 的具体位置】
+
+Squirrel Designer 的 index.html 结构：
+
+    <header class="header">
+        <div class="header-left"> ... logo ... </div>
+        <div class="header-right"> ... 按钮 ... </div>
+    </header>
+
+在 .header-right 之前插入：
+
+    <div class="squirrel-marquee-wrap">
+      <div id="squirrelMarquee" class="squirrel-marquee"></div>
+      <span class="squirrel-marquee-badge" id="squirrelMarqueeBadge" hidden>0</span>
+    </div>
+
+初始化时机 — 在 checkLogin() 通过之后调：
+
+    SQMarquee.init({ dept: '' });     // 全公司
+    SQMarquee.init({ dept: 'sales' }); // 只显示销售部
+
+==========================================================================
+-->

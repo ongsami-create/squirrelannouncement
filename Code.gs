@@ -133,14 +133,18 @@ function readJson_(file) {
   }
 }
 
+/** Drive 里存 JSON 用的 MIME type —— 用字面量，别用 ContentService.MimeType.JSON
+ *  （后者在 setContent/createFile 里会抛 "Invalid argument"） */
+const JSON_MIME = 'application/json';
+
 function writeJson_(folder, fileName, obj) {
   const content = JSON.stringify(obj, null, 2);
   const files = folder.getFilesByName(fileName);
   while (files.hasNext()) {
-    files.next().setContent(content, ContentService.MimeType.JSON);
+    files.next().setContent(content, JSON_MIME);
     return true; // 更新第一条即可（同名只应存在一条）
   }
-  folder.createFile(fileName, content, ContentService.MimeType.JSON);
+  folder.createFile(fileName, content, JSON_MIME);
   return true;
 }
 

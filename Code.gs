@@ -50,16 +50,18 @@ const VALID_SORT = ['updatedAt', 'publishedAt', 'title', 'priority'];
 // ============================================================================
 
 function doGet(e) {
-  const action = (e.parameter.action || 'getList').toString();
-  const payload = {};
+  // ⚠️ e 可能是 undefined —— 在 GAS 编辑器里点「运行」按钮时不会传参
+  const params = (e && e.parameter) || {};
+  const action = (params.action || 'getList').toString();
+  let payload = {};
 
   try {
     switch (action) {
       case 'health':          payload = health(); break;
-      case 'getList':         payload = getList(e.parameter); break;
-      case 'getOne':          payload = getOne(e.parameter.id); break;
-      case 'getWall':         payload = getWall(e.parameter); break;
-      case 'getMarquee':      payload = getMarquee(e.parameter); break;
+      case 'getList':         payload = getList(params); break;
+      case 'getOne':          payload = getOne(params.id); break;
+      case 'getWall':         payload = getWall(params); break;
+      case 'getMarquee':      payload = getMarquee(params); break;
       case 'getSettings':     payload = getSettings(); break;
       default:
         payload = { ok: false, error: 'Unknown action: ' + action };
@@ -74,7 +76,7 @@ function doGet(e) {
 function doPost(e) {
   let body = {};
   try {
-    body = JSON.parse(e.postData.contents || '{}');
+    body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
   } catch (parseErr) {
     return jsonOut({ ok: false, error: 'Invalid JSON body' });
   }

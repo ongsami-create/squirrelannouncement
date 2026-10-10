@@ -784,7 +784,7 @@ function renderSidebar() {
   $('deptNav').innerHTML = depts.map(function (d) {
     return '<div class="side-item' + (state.filterDept === d.key ? ' active' : '') +
       '" onclick="setFilterDept(\'' + d.key + '\')">' +
-      '<span>' + d.label + '</span></div>';
+      '<span>' + (d.label || d.zh) + '</span></div>';
   }).join('');
 }
 

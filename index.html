@@ -1230,13 +1230,9 @@ function renderEditorHtml(a) {
   '</div>';
 }
 
-function bindEditor(a) {
-  if (a && state.editing.hasDateRange) updateRangePreview();
-  // 粘贴后同步（富文本粘贴可能绕过 oninput）
-  ['zhTitle','zhContent','enTitle','enContent'].forEach(function (id) {
-    const el = $(id);
-    if (el) el.addEventListener('input', markDirty);
-  });
+function bindEditor() {
+  // 日期范围面板存在时刷新一次说明文字
+  if (state.editing.hasDateRange && $('rangePreview')) updateRangePreview();
 }
 
 function markDirty() { state.draftDirty = true; }
@@ -1251,26 +1247,35 @@ function switchTab(tab) {
   });
 }
 
-function reRenderEditor(existingId) {
+/**
+ * 只重建编辑器 DOM，保留 state.editing 里的当前改动。
+ * ⚠️ 不能用 openEditor() 重开 —— 它会从 state.announcements 重新初始化
+ * state.editing，把用户刚才的输入和选择全部覆盖掉（点语言/部门/有效期无效的真凶）。
+ */
+function reRenderEditor() {
   const el = $('editorOverlay');
-  const keepScroll = el ? el.querySelector('.editor-body').scrollTop : 0;
-  if (el) el.remove();
-  const a = existingId ? state.announcements.find(function (x) { return x.id === existingId; }) : null;
-  openEditor(existingId);
-  const body = document.querySelector('.editor-body');
-  if (body) body.scrollTop = keepScroll;
+  const body = el ? el.querySelector('.editor-body') : null;
+  const keepScroll = body ? body.scrollTop : 0;
+
+  const isNew = !state.editing.id;
+  el.innerHTML = renderEditorHtml(isNew ? null : state.editing.id);
+  bindEditor();
+
+  const newBody = el.querySelector('.editor-body');
+  if (newBody) newBody.scrollTop = keepScroll;
+  if (state.editorTab) switchTab(state.editorTab);
 }
 
 function setLang(lang) {
   collectEditor();
   state.editing.language = lang;
-  reRenderEditor(state.editing.id);
+  reRenderEditor();
 }
 
 function setPriority(p) {
   collectEditor();
   state.editing.priority = p;
-  reRenderEditor(state.editing.id);
+  reRenderEditor();
 }
 
 function toggleDept(key) {
@@ -1284,7 +1289,7 @@ function toggleDept(key) {
     else d.departments.push(key);
   }
   d.allCompany = d.departments.length === 0;
-  reRenderEditor(d.id);
+  reRenderEditor();
 }
 
 function toggleRange() {
@@ -1292,7 +1297,7 @@ function toggleRange() {
   collectEditor();
   state.editing.hasDateRange = on;
   if (on && !state.editing.dateRange.start) state.editing.dateRange.start = todayStr();
-  reRenderEditor(state.editing.id);
+  reRenderEditor();
 }
 
 function onRangeChange() {

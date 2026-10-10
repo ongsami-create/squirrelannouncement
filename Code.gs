@@ -119,6 +119,81 @@ function jsonOut(obj) {
 // Folder / File helpers
 // ============================================================================
 
+// ============================================================================
+// 缓存层
+// ============================================================================
+
+/**
+ * 实测（2026-10-10，1 条数据时）：
+ *   health      1.7s   ← 什么都不做，纯 GAS 冷启动开销
+ *   getList     2.0s
+ *   getMarquee  2.6s
+ *
+ * 结论：单条数据的耗时几乎全是 GAS 自身的冷启动，Drive 遍历占比很小。
+ * 但一旦公告上到几十条，每次都要 getBlob().getDataAsString() 逐个读盘，
+ * 会线性变慢。这里用 ScriptCache 缓存全量数据，把 N 次 Drive 读压成 1 次。
+ *
+ * 缓存上限 100KB（ScriptCache 硬限制），超出就自动跳过缓存保证正确性。
+ */
+const CACHE_KEY = 'ann_all_v1';
+const CACHE_TTL = 300;      // 5 分钟
+const CACHE_MAX_BYTES = 90000;
+
+/** 读全量公告（带缓存）。force=true 时跳过缓存直读 Drive。 */
+function loadAll_(force) {
+  if (!force) {
+    const hit = cacheGet_();
+    if (hit) return hit;
+  }
+  const list = readAllFromDrive_();
+  cachePut_(list);
+  return list;
+}
+
+/** 写操作后调用，让下次读取拿到最新数据 */
+function invalidateCache_() {
+  try {
+    CacheService.getScriptCache().remove(CACHE_KEY);
+  } catch (e) { /* 缓存失败不影响主流程 */ }
+}
+
+function cacheGet_() {
+  try {
+    const raw = CacheService.getScriptCache().get(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function cachePut_(list) {
+  try {
+    const s = JSON.stringify(list);
+    if (s.length > CACHE_MAX_BYTES) return;   // 超限就不缓存，下次仍能正确读取
+    CacheService.getScriptCache().put(CACHE_KEY, s, CACHE_TTL);
+  } catch (e) { /* 缓存失败不影响主流程 */ }
+}
+
+/** 直读 Drive，把所有公告读进内存 */
+function readAllFromDrive_() {
+  const folder = getRootFolder_();
+  const files = folder.getFiles();
+  const now = Date.now();
+  const out = [];
+
+  while (files.hasNext()) {
+    const f = files.next();
+    if (f.getName() === SETTINGS_FILE) continue;
+    const rec = readJson_(f);
+    if (!rec || !rec.id) continue;
+    rec.status = deriveStatus_(rec, now);
+    out.push(rec);
+  }
+  return out;
+}
+
 function getRootFolder_() {
   const folders = DriveApp.getFoldersByName(ROOT_FOLDER_NAME);
   if (folders.hasNext()) return folders.next();
@@ -144,10 +219,12 @@ function writeJson_(folder, fileName, obj) {
     // ⚠️ File.setContent 只接受 1 个参数（内容），传第 2 个 MIME 会抛
     //    "The parameters (String,String) don't match the method signature"
     files.next().setContent(content);
+    invalidateCache_();   // 任何写入都让读取缓存失效
     return true; // 更新第一条即可（同名只应存在一条）
   }
   // Folder.createFile(name, content, mimeType) 是 3 参数，这个没问题
   folder.createFile(fileName, content, JSON_MIME);
+  invalidateCache_();
   return true;
 }
 
@@ -300,22 +377,8 @@ function health() {
 
 function getList(params) {
   params = params || {};
-  const folder = getRootFolder_();
-  const files = folder.getFiles();
-  const now = Date.now();
-  const out = [];
-
-  while (files.hasNext()) {
-    const f = files.next();
-    if (f.getName() === SETTINGS_FILE) continue;
-
-    const rec = readJson_(f);
-    if (!rec || !rec.id) continue;
-
-    // 状态实时推导（定时发布 / 自动过期在此生效）
-    rec.status = deriveStatus_(rec, now);
-    out.push(rec);
-  }
+  const all = loadAll_().slice();   // 走缓存，slice 防止 sort 污染缓存对象
+  let out = all.slice();
 
   // --- 排序：置顶优先，然后按用户选的排序字段 ---
   const sortKey = VALID_SORT.indexOf(params.sort) >= 0 ? params.sort : 'updatedAt';
@@ -331,7 +394,6 @@ function getList(params) {
   });
 
   // --- 先基于全量算统计（必须在任何筛选之前，否则 Tab 上的数字会跟着筛选跳）---
-  const all = out.slice();
   const stats = { total: all.length, draft: 0, scheduled: 0, published: 0, archived: 0, expired: 0 };
   all.forEach(function (r) { stats[r.status] = (stats[r.status] || 0) + 1; });
 
@@ -383,20 +445,9 @@ function getOne(id) {
 
 function getWall(params) {
   params = params || {};
-  const folder = getRootFolder_();
-  const files = folder.getFiles();
-  const now = Date.now();
-  let out = [];
-
-  while (files.hasNext()) {
-    const f = files.next();
-    if (f.getName() === SETTINGS_FILE) continue;
-    const rec = readJson_(f);
-    if (!rec || !rec.id) continue;
-    rec.status = deriveStatus_(rec, now);
-    if (!isVisibleOnWall_(rec)) continue;
-    out.push(rec);
-  }
+  let out = loadAll_().filter(function (rec) {
+    return isVisibleOnWall_(rec);
+  });
 
   // 按部门过滤（读者端传 dept，看不到别的部门的公告）
   if (params.dept && params.dept !== 'all' && params.dept !== '') {
@@ -437,23 +488,13 @@ function getWall(params) {
 function getMarquee(params) {
   params = params || {};
   const limit = parseInt(params.limit, 10) || 5;
-  const folder = getRootFolder_();
-  const files = folder.getFiles();
-  const now = Date.now();
   const out = [];
 
-  while (files.hasNext()) {
-    const f = files.next();
-    if (f.getName() === SETTINGS_FILE) continue;
-    const rec = readJson_(f);
-    if (!rec || !rec.id) continue;
-    rec.status = deriveStatus_(rec, now);
-    if (rec.status !== STATUS.PUBLISHED) continue;   // 跑马灯只放正在生效的
-
+  loadAll_().forEach(function (rec) {
+    if (rec.status !== STATUS.PUBLISHED) return;   // 跑马灯只放正在生效的
     if (params.dept && params.dept !== 'all') {
-      if (!rec.allCompany && (rec.departments || []).indexOf(params.dept) < 0) continue;
+      if (!rec.allCompany && (rec.departments || []).indexOf(params.dept) < 0) return;
     }
-
     out.push({
       id:       rec.id,
       title:    rec.zh.title || rec.en.title || '(无标题)',
@@ -461,7 +502,7 @@ function getMarquee(params) {
       priority: rec.priority,
       end:      rec.dateRange && rec.dateRange.end ? rec.dateRange.end : ''
     });
-  }
+  });
 
   out.sort(function (a, b) {
     if (b.priority !== a.priority) return b.priority - a.priority;
@@ -579,6 +620,7 @@ function remove(id) {
 
   const f = files.next();
   f.setTrashed(true);   // 不是真删，在 Drive 回收站里可以还原
+  invalidateCache_();   // 删除后缓存里还有这条，必须失效
 
   return { ok: true, deleted: id, note: '已移到回收站，可从 Google Drive 还原' };
 }

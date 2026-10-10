@@ -20,6 +20,26 @@
 沿用 Squirrel 系列：macOS Big Sur 玻璃顶栏、圆角 10-14px、SF Pro 字体。
 Logo 靠最左、高度 64px、透底无白底，**不用 macOS traffic lights 圆点**。
 
+## 当前 GAS Web App URL
+
+```
+https://script.google.com/macros/s/AKfycbwgzh1_cO7O9GqsASza9Jyy0gbUXf7dZ7BZpkFCJ3xKhDBVGq7rrUHtxr9864hRvrcj/exec
+```
+
+已填入 `index.html:555` 和 `marquee-component.html:212`。
+项目名 `squirrel announcement`，Drive 文件夹 `SquirrelAnnouncement_Records/`。
+
+**部署踩过的坑**（避免重复踩）：
+1. 保存代码 ≠ 生效，必须「管理部署 → ✏️ → 版本 → 新版本 → 部署」
+2. 首次部署时 Web App 权限要设「任何人」，否则外部请求返回 403「You need access」
+3. Drive 写入：`File.setContent(content)` 单参数；`Folder.createFile(name, content, mimeType)` 三参数，
+   mimeType 用字符串 `'application/json'`，不能传 `ContentService.MimeType.JSON`
+
+## 部署信息
+
+- 仓库：https://github.com/ongsami-create/squirrelannouncement
+- 站点：https://ongsami-create.github.io/squirrelannouncement/
+
 ## 部门清单（硬编码，与 backadmin 一致）
 
 用户 2026-10-10 明确规定：统一使用 backadmin 设置的部门，不要自己另搞一套。

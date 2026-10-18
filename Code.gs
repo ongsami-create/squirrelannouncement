@@ -18,13 +18,16 @@ const SETTINGS_FILE    = '_settings.json';
 /**
  * 部门定义 — 与 backadmin (projects/30) 的 departments key 保持一致
  * ⚠️ 不要在这里新增/改名，要改就同步改 backadmin
+ * 2026-10-18 新增 install / orderClerk
  */
 const DEPARTMENTS = [
-  { key: 'admin',    zh: '管理员', en: 'Admin Dept' },
-  { key: 'agent',    zh: '代理',   en: 'Agent' },
-  { key: 'designer', zh: '设计师', en: 'Designer' },
-  { key: 'logistics',zh: '物流',   en: 'Logistics' },
-  { key: 'sales',    zh: '销售',   en: 'Sales' }
+  { key: 'admin',      zh: '管理员', en: 'Admin Dept' },
+  { key: 'agent',      zh: '代理',   en: 'Agent' },
+  { key: 'designer',   zh: '设计师', en: 'Designer' },
+  { key: 'logistics',  zh: '物流',   en: 'Logistics' },
+  { key: 'sales',      zh: '销售',   en: 'Sales' },
+  { key: 'install',    zh: '安装',   en: 'Installer' },
+  { key: 'orderClerk', zh: '下单员', en: 'Order Clerk' }
 ];
 
 const VALID_DEPT_KEYS = DEPARTMENTS.map(function (d) { return d.key; });

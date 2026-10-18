@@ -51,16 +51,21 @@ https://script.google.com/macros/s/AKfycbwgzh1_cO7O9GqsASza9Jyy0gbUXf7dZ7BZpkFCJ
 | designer | 设计师 | Designer |
 | logistics | 物流 | Logistics |
 | sales | 销售 | Sales |
+| install | 安装 | Installer |
+| orderClerk | 下单员 | Order Clerk |
 
 数据源：`projects/30/backadmin/dist/index.html` 的 `departments` i18n 节点。
 
+**2026-10-18 更新**：新增 `install`（安装）和 `orderClerk`（下单员），共 7 个。
+`users.json` 佐证：JIA=logistics+install，JUN=install，SSD/FSD/test=sales+orderClerk。
+
 **空选 = 全公司**。存储上 `departments: []` + `allCompany: true`。
 
-要加部门必须同时改 3 处：
-1. `Code.gs` 的 `DEPARTMENTS`
+要加部门必须同时改 4 处：
+1. `Code.gs` 的 `DEPARTMENTS`（**必须先部署 GAS**，否则前端选了下端会过滤掉）
 2. `index.html` 的 `DEPARTMENTS`
-3. `marquee-component.html` 注释里的可选值说明
-4. backadmin 的 i18n（源头）
+3. `marquee-component.html` 顶部的可选值注释
+4. backadmin 的 i18n（源头）+ `users.json` 里现有用户的 `departments`
 
 ## 数据模型
 

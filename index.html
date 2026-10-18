@@ -554,13 +554,15 @@ body {
    ========================================================================== */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwgzh1_cO7O9GqsASza9Jyy0gbUXf7dZ7BZpkFCJ3xKhDBVGq7rrUHtxr9864hRvrcj/exec';
 
-// ⚠️ 部门清单与 backadmin 完全一致（用户 2026-10-10 规定）
+// ⚠️ 部门清单与 backadmin 完全一致（2026-10-18 同步 install / orderClerk）
 const DEPARTMENTS = [
-  { key: 'admin',    zh: '管理员', en: 'Admin Dept' },
-  { key: 'agent',    zh: '代理',   en: 'Agent' },
-  { key: 'designer', zh: '设计师', en: 'Designer' },
-  { key: 'logistics',zh: '物流',   en: 'Logistics' },
-  { key: 'sales',    zh: '销售',   en: 'Sales' }
+  { key: 'admin',      zh: '管理员', en: 'Admin Dept' },
+  { key: 'agent',      zh: '代理',   en: 'Agent' },
+  { key: 'designer',   zh: '设计师', en: 'Designer' },
+  { key: 'logistics',  zh: '物流',   en: 'Logistics' },
+  { key: 'sales',      zh: '销售',   en: 'Sales' },
+  { key: 'install',    zh: '安装',   en: 'Installer' },
+  { key: 'orderClerk', zh: '下单员', en: 'Order Clerk' }
 ];
 
 const STATUS_META = {

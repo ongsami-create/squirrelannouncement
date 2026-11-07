@@ -510,6 +510,29 @@ body {
   .row { flex-wrap: wrap; }
   .row-actions { width: 100%; justify-content: flex-end; }
 }
+
+/* ---------- 管理员登录弹窗（2026-11-07） ---------- */
+.login-mask {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.28);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  z-index: 99999; display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.login-box {
+  background: var(--bg-card-solid); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: 24px; width: 100%; max-width: 340px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.login-box h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.login-hint { margin: 0 0 4px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.login-box input {
+  width: 100%; padding: 9px 11px; border-radius: var(--radius-sm);
+  border: 1px solid var(--separator); background: var(--bg-white);
+  font-size: 14px; font-family: inherit; color: var(--text-primary);
+}
+.login-box input:focus { outline: none; border-color: var(--primary); }
+.login-err { color: var(--red); font-size: 12px; min-height: 16px; }
+.login-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -548,6 +571,21 @@ body {
 <!-- Toast 容器 -->
 <div class="toast-wrap" id="toastWrap"></div>
 
+<!-- ================= 管理员登录弹窗（2026-11-07） ================= -->
+<div class="login-mask" id="loginMask" style="display:none;">
+  <div class="login-box">
+    <h3>管理员登录</h3>
+    <p class="login-hint">请用管理员账号（admin）登录 · 密码跟 backadmin 一样</p>
+    <input type="text" id="loginUser" placeholder="Username" autocomplete="username">
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
+    <div class="login-err" id="loginErr"></div>
+    <div class="login-actions">
+      <button class="btn" onclick="closeLogin_()">取消</button>
+      <button class="btn btn-primary" onclick="doLogin_()">登录</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ==========================================================================
    全局配置
@@ -574,6 +612,89 @@ const STATUS_META = {
 };
 
 const READ_KEY = 'squirrel_announcement_read';
+
+/* ==========================================================================
+   鉴权（2026-11-07）
+   后端写操作全部需要 token；只有 isAdmin 账号（= admin）能进管理端。
+   公告墙（只读）对所有人开放。
+   ========================================================================== */
+const AUTH_KEY = 'squirrel_announcement_auth';
+
+function authToken_() {
+  try {
+    const j = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+    return (j && j.token) ? j.token : '';
+  } catch (e) { return ''; }
+}
+function authUser_() {
+  try {
+    const j = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+    return (j && j.user) ? j.user : null;
+  } catch (e) { return null; }
+}
+function authSet_(token, user) {
+  try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token: token, user: user || null })); } catch (e) {}
+}
+function authClear_() {
+  try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+}
+function isAuthed_() { return !!authToken_(); }
+
+/** ?view=wall / ?view=manage 深链 */
+function initialViewFromUrl_() {
+  try {
+    const s = (typeof window !== 'undefined' && window.location && window.location.search) || '';
+    const v = (new URLSearchParams(s).get('view') || '').toLowerCase();
+    if (v === 'wall' || v === 'manage') return v;
+  } catch (e) {}
+  return 'manage';
+}
+
+/* ---------- 管理员登录弹窗 ---------- */
+let loginResolve_ = null;
+function promptLogin_() {
+  const mask = $('loginMask');
+  if (!mask) return Promise.resolve(false);
+  mask.style.display = 'flex';
+  $('loginErr').textContent = '';
+  $('loginPass').value = '';
+  setTimeout(function () { $('loginUser').focus(); }, 30);
+  return new Promise(function (resolve) { loginResolve_ = resolve; });
+}
+function closeLogin_() {
+  const mask = $('loginMask');
+  if (mask) mask.style.display = 'none';
+  if (loginResolve_) { const r = loginResolve_; loginResolve_ = null; r(false); }
+}
+async function doLogin_() {
+  const u = $('loginUser').value.trim();
+  const p = $('loginPass').value;
+  $('loginErr').textContent = '';
+  if (!u || !p) { $('loginErr').textContent = '请输入账号和密码'; return; }
+  try {
+    const r = await post('login', { username: u, password: p });
+    if (r && r.ok && r.token) {
+      authSet_(r.token, r.user);
+      $('loginMask').style.display = 'none';
+      if (loginResolve_) { const rs = loginResolve_; loginResolve_ = null; rs(true); }
+      await loadList();
+      render();
+      toast('已登录：' + ((r.user && r.user.displayName) || (r.user && r.user.username) || u));
+    } else {
+      $('loginErr').textContent = (r && r.error) || '登录失败';
+    }
+  } catch (e) {
+    $('loginErr').textContent = '网络错误：' + e.message;
+  }
+}
+function authLogout_() {
+  const t = authToken_();
+  authClear_();
+  if (t) { try { post('logout', { token: t }).catch(function () {}); } catch (e) {} }
+  state.view = 'wall';
+  switchView('wall');
+  loadList();
+}
 
 /* ==========================================================================
    状态
@@ -687,13 +808,32 @@ async function post(action, body) {
    * 所有 POST（保存/发布/删除）全部无效。
    * text/plain 属于「简单请求」，不触发预检，GAS 的 doPost 照样能读 e.postData。
    */
+  const payload = Object.assign({ action: action }, body || {});
+  const t = authToken_();
+  if (t) payload.token = t;          // 写操作带 token（2026-11-07 加鉴权）
   const res = await fetch(GAS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ action: action }, body || {}))
+    body: JSON.stringify(payload)
   });
   if (!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
+  const json = await res.json();
+  // token 过期 / 未登录 → 弹登录框，登录成功后自动重试这一次
+  if (json && json.needAuth) {
+    const ok = await promptLogin_();
+    if (!ok) return json;
+    const t2 = authToken_();
+    if (!t2) return json;
+    payload.token = t2;
+    const res2 = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    if (!res2.ok) throw new Error('HTTP ' + res2.status);
+    return res2.json();
+  }
+  return json;
 }
 
 const isPlaceholder = GAS_URL.indexOf('PLACEHOLDER') >= 0;
@@ -730,10 +870,19 @@ async function loadList() {
   }
   showLoading('加载公告...');
   try {
-    const r = await call('getList');
+    // ⚠️ 2026-11-07 加鉴权后 getList 需要 token；没登录就读公开的 getWall
+    const r = isAuthed_()
+      ? await call('getList', { token: authToken_() })
+      : await call('getWall');
     if (r.ok) {
       state.announcements = r.announcements || [];
       state.stats = r.stats || state.stats;
+    } else if (r.needAuth) {
+      // token 过期 → 清掉，降级成只读公告墙
+      authClear_();
+      state.view = 'wall';
+      const w = await call('getWall');
+      if (w.ok) state.announcements = w.announcements || [];
     } else {
       toast(r.error || '加载失败', 'err');
     }
@@ -749,6 +898,16 @@ async function loadList() {
    渲染
    ========================================================================== */
 function render() {
+  // ⚠️ 2026-11-07：未登录不许进管理视图（管理数据要 token）
+  if (state.view === 'manage' && !isAuthed_()) state.view = 'wall';
+  // 未登录时「公告管理」tab 不出现（不是禁用，是不渲染）
+  const mb = $('viewManageBtn');
+  if (mb) mb.style.display = isAuthed_() ? '' : 'none';
+  // 公告墙不显示侧边栏（状态/部门筛选在墙里用工具栏）
+  // ⚠️ 放在 render() 里而不是 switchView()：init() 是直接调 render() 的，
+  //    以前首次进公告墙侧边栏还留着（计数全是 0），点「已排期」也没用
+  const sb = document.querySelector('.sidebar');
+  if (sb) sb.style.display = state.view === 'wall' ? 'none' : '';
   renderTopbarActions();
   renderSidebar();
   if (state.view === 'manage') renderManageList();
@@ -761,11 +920,17 @@ function renderTopbarActions() {
     const n = unreadCount();
     // badge 绝对定位在 bell 上，所以外面包一层 relative 容器
     box.innerHTML = '<div style="position:relative;display:flex;align-items:center">' +
-      '<button class="bell" onclick="switchView(\'manage\')" title="公告管理">📢</button>' +
+      '<button class="bell" onclick="switchView(\'wall\')" title="公告墙">📢</button>' +
       (n > 0 ? '<span class="bell-badge">' + (n > 99 ? '99+' : n) + '</span>' : '') +
-      '</div>';
+      '</div>' +
+      // ⚠️ 2026-11-07：未登录不出现「公告管理」tab（不是禁用，是不渲染）
+      (isAuthed_()
+        ? '<button class="btn" onclick="switchView(\'manage\')">公告管理</button>' +
+          '<button class="btn" onclick="authLogout_()">退出</button>'
+        : '<button class="btn btn-primary" onclick="promptLogin_()">管理员登录</button>');
   } else {
-    box.innerHTML = '<button class="btn btn-primary" onclick="openEditor(null)">＋ 新增公告</button>';
+    box.innerHTML = '<button class="btn btn-primary" onclick="openEditor(null)">＋ 新增公告</button>' +
+      '<button class="btn" onclick="authLogout_()">退出登录</button>';
   }
 }
 
@@ -1017,6 +1182,13 @@ function bindWallSearch() {
    视图切换 / 筛选
    ========================================================================== */
 function switchView(v) {
+  // ⚠️ 2026-11-07：管理视图要 token，未登录先弹登录框
+  if (v === 'manage' && !isAuthed_()) {
+    promptLogin_().then(function (ok) {
+      if (ok) switchView('manage');
+    });
+    return;
+  }
   state.view = v;
   $('viewManageBtn').className = v === 'manage' ? 'active' : '';
   $('viewWallBtn').className   = v === 'wall'   ? 'active' : '';
@@ -1558,6 +1730,20 @@ window.addEventListener('beforeunload', function (e) {
 (async function init() {
   if (isPlaceholder) {
     toast('当前为 Demo 模式，配置 GAS_URL 后即可使用', 'err');
+  }
+  // ⚠️ 2026-11-07：初始视图 —— 深链优先；未登录一律进只读公告墙
+  state.view = initialViewFromUrl_();
+  const t = authToken_();
+  if (t) {
+    try {
+      const w = await call('whoami', { token: t });
+      if (!w || !w.ok) { authClear_(); state.view = 'wall'; }
+    } catch (e) {
+      authClear_();
+      state.view = 'wall';
+    }
+  } else {
+    state.view = 'wall';
   }
   await loadList();
   render();

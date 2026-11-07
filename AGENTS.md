@@ -233,9 +233,27 @@ Squirrel Designer 的 `index.html` 里已经有完整的跑马灯实现，**不�
 `marquee-component.html` 复制粘贴**（那是旧版胶囊样式，已被取代）。
 
 - 位置：`projects/29/frontend/index.html`
-- 组件名：`SQAnnounce`（IIFE，暴露 `init()` / `refresh()` / `openWall()`）
+- 组件名：`SQAnnounce`（IIFE，暴露 `init()` / `refresh()` / `openList()`）
 - 挂载点：`#sqAnnounceBar` / `#sqAnnounceTrack` / `#sqAnnounceAll`
 - 弹窗样式 `.sq-modal-*` 已从 `marquee-component.html` 复制进 SD 的 `<style>`
+
+### 「全部公告」＝ 页内弹窗，不跳转（2026-11-07 用户改版）
+
+**以前**：点「全部公告」→ `window.open` 跳到公告系统站点 `?view=wall`。
+**现在**：点「全部公告」→ **在报价系统里弹窗**，只显示当前账号所属部门的公告。
+
+实现要点：
+
+- 数据用 `getWall`（**不带 dept**，一次拿全量完整记录）→ 前端用
+  `announceFilterByDepts_(list, currentUser.departments)` 自己过滤
+  → **不用改 GAS、不用再部署**
+- 规则：全公司公告人人可见；部门专属的只要命中我一个部门就算
+- 列表弹窗里的记录是完整的 → 点进详情**不用再请求 `getOne`**
+- 详情弹窗底部按钮：从跑马灯进来显示「查看全部公告」（开列表弹窗），
+  从列表进来显示「返回列表」（回到列表弹窗）—— **全程页内，零跳转**
+- SD 前端已**完全移除** `window.open` / `WALL_URL` / `openWall`
+  （SD 别处的 `window.open` 是 PDF 打印 / CSV 下载 / agent.minimaxi.com，与公告无关）
+- 公告系统自己的公开公告墙仍然存在（可直接访问 URL），只是 SD 不再往那跳
 
 ### 旧版做法（保留参考，勿再照抄）
 
@@ -288,7 +306,7 @@ SD 侧实现要点（`projects/29/frontend/index.html`）：
 - **公开**（不需要 token）：`getWall` / `getMarquee` / `getOne` / `markRead`
 - **需要 token**：`getList` / `getSettings` / 全部写操作
 - 未登录时前端只渲染公告墙，不出现「公告管理」tab；写操作收到 `needAuth` → 弹登录框重登
-- 深链：`?view=wall` 直接进只读公告墙（SD 的「查看全部」落点）
+- 深链：`?view=wall` 直接进只读公告墙（公告系统自己的公开页；SD 已改成页内弹窗，不再跳这里）
 - 错误文案统一：登录失败 `'账号或密码错误'`（不泄露账号是否存在）、
   未登录 `'未登录或登录已过期'`
 

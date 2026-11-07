@@ -388,7 +388,9 @@ function getList(params) {
   out.sort(function (a, b) {
     if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
     if (sortKey === 'priority') {
-      if (b.priority !== a.priority) return b.priority - a.priority;
+      // ⚠️ 2026-11-07 修：priority 1=紧急 / 2=普通，紧急要排在**前面**
+      //    原来写的是 b.priority - a.priority → 2 在 1 前面 → 紧急的排到最后
+      if (b.priority !== a.priority) return a.priority - b.priority;
     }
     const av = a[sortKey] || '';
     const bv = b[sortKey] || '';
@@ -469,7 +471,9 @@ function getWall(params) {
   // 置顶优先 → 紧急优先 → 发布日期新的优先
   out.sort(function (a, b) {
     if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
-    if (b.priority !== a.priority) return b.priority - a.priority;
+    // ⚠️ 2026-11-07 修：priority 1=紧急 / 2=普通，紧急要排在**前面**
+    //    原来写的是 b.priority - a.priority → 2 在 1 前面 → 紧急的排到最后
+    if (b.priority !== a.priority) return a.priority - b.priority;
     return String(b.publishedAt || '').localeCompare(String(a.publishedAt || ''));
   });
 
@@ -491,11 +495,26 @@ function getWall(params) {
 function getMarquee(params) {
   params = params || {};
   const limit = parseInt(params.limit, 10) || 5;
+  /**
+   * ✅ 2026-11-07：支持多部门（depts，逗号分隔）。
+   * 背景：SD 用户可能有多个部门（SSD/FSD = sales + orderClerk），
+   *      原来的单个 dept 参数表达不了；而 dept='' 会完全不过滤 →
+   *      别的部门专属公告会串到不该看到的人眼前。
+   * 兼容：dept 保持原语义不变（公告系统自己还在用）。
+   * 前端总是两个都发 → 本 GAS 新旧版都能正确过滤，部署顺序无关。
+   */
+  const depts = String(params.depts || '')
+    .split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   const out = [];
 
   loadAll_().forEach(function (rec) {
     if (rec.status !== STATUS.PUBLISHED) return;   // 跑马灯只放正在生效的
-    if (params.dept && params.dept !== 'all') {
+    if (depts.length) {
+      // 全公司公告人人可见；否则只要命中我一个部门就算
+      if (!rec.allCompany && !depts.some(function (d) {
+        return (rec.departments || []).indexOf(d) >= 0;
+      })) return;
+    } else if (params.dept && params.dept !== 'all') {
       if (!rec.allCompany && (rec.departments || []).indexOf(params.dept) < 0) return;
     }
     out.push({
@@ -508,7 +527,9 @@ function getMarquee(params) {
   });
 
   out.sort(function (a, b) {
-    if (b.priority !== a.priority) return b.priority - a.priority;
+    // ⚠️ 2026-11-07 修：priority 1=紧急 / 2=普通，紧急要排在**前面**
+    //    原来写的是 b.priority - a.priority → 2 在 1 前面 → 紧急的排到最后
+    if (b.priority !== a.priority) return a.priority - b.priority;
     return String(b.end).localeCompare(String(a.end));
   });
 

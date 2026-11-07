@@ -55,17 +55,22 @@ const VALID_SORT = ['updatedAt', 'publishedAt', 'title', 'priority'];
 function doGet(e) {
   // ⚠️ e 可能是 undefined —— 在 GAS 编辑器里点「运行」按钮时不会传参
   const params = (e && e.parameter) || {};
-  const action = (params.action || 'getList').toString();
+  const action = (params.action || 'getWall').toString();
   let payload = {};
 
   try {
     switch (action) {
       case 'health':          payload = health(); break;
-      case 'getList':         payload = getList(params); break;
+      case 'login':           payload = login(params.username, params.password); break;
+      case 'whoami':          payload = whoami(params.token); break;
+      case 'logout':          payload = logout(params.token); break;
+      // ↓ 需要 token：管理用
+      case 'getList':         payload = _needAuth_(params.token) ? _authErr_() : getList(params); break;
+      case 'getSettings':     payload = _needAuth_(params.token) ? _authErr_() : getSettings(); break;
+      // ↓ 公开：读者页 + SD 跑马灯要用
       case 'getOne':          payload = getOne(params.id); break;
       case 'getWall':         payload = getWall(params); break;
       case 'getMarquee':      payload = getMarquee(params); break;
-      case 'getSettings':     payload = getSettings(); break;
       default:
         payload = { ok: false, error: 'Unknown action: ' + action };
     }
@@ -89,16 +94,20 @@ function doPost(e) {
 
   try {
     switch (action) {
-      case 'save':        payload = save(body.data || {}, body.id || null); break;
-      case 'publish':     payload = setStatus(body.id, STATUS.PUBLISHED); break;
-      case 'unpublish':   payload = setStatus(body.id, STATUS.DRAFT); break;
-      case 'archive':     payload = setStatus(body.id, STATUS.ARCHIVED); break;
-      case 'restore':     payload = restore(body.id); break;
-      case 'togglePin':   payload = togglePin(body.id); break;
-      case 'delete':      payload = remove(body.id); break;
-      case 'saveSettings':payload = saveSettings(body.settings || {}); break;
-      case 'markRead':    payload = markRead(body.id, body.reader); break;
-      case 'getReaders':  payload = getReaders(body.id); break;
+      case 'login':           payload = login(body.username, body.password); break;
+      case 'logout':          payload = logout(body.token); break;
+      // ↓ 公开：只写已读名单，无害（SD 跑马灯会调）
+      case 'markRead':        payload = markRead(body.id, body.reader); break;
+      // ↓ 其余全部需要 token（2026-11-07 加鉴权）
+      case 'save':            payload = _needAuth_(body.token) ? _authErr_() : save(body.data || {}, body.id || null); break;
+      case 'publish':         payload = _needAuth_(body.token) ? _authErr_() : setStatus(body.id, STATUS.PUBLISHED); break;
+      case 'unpublish':       payload = _needAuth_(body.token) ? _authErr_() : setStatus(body.id, STATUS.DRAFT); break;
+      case 'archive':         payload = _needAuth_(body.token) ? _authErr_() : setStatus(body.id, STATUS.ARCHIVED); break;
+      case 'restore':         payload = _needAuth_(body.token) ? _authErr_() : restore(body.id); break;
+      case 'togglePin':       payload = _needAuth_(body.token) ? _authErr_() : togglePin(body.id); break;
+      case 'delete':          payload = _needAuth_(body.token) ? _authErr_() : remove(body.id); break;
+      case 'saveSettings':    payload = _needAuth_(body.token) ? _authErr_() : saveSettings(body.settings || {}); break;
+      case 'getReaders':      payload = _needAuth_(body.token) ? _authErr_() : getReaders(body.id); break;
       default:
         payload = { ok: false, error: 'Unknown action: ' + action };
     }
@@ -115,6 +124,109 @@ function jsonOut(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+// ============================================================================
+// 鉴权 — 复用 Squirrel Designer 的 users.json
+// ============================================================================
+//
+// ⚠️ 2026-11-07 起启用。原因：之前所有写操作（save/publish/delete/archive…）
+//    完全无鉴权，而本 GAS 是按「任何人可访问」部署的 → 任何人在浏览器控制台
+//    发一个 fetch 就能发布 / 删除 / 篡改全公司的公告。
+//
+// 账号来源：Squirrel Designer/admin/users.json
+//   （与 backadmin / 报价系统 / OrderFile 共用同一份）
+// 登录条件：账密匹配 **且** isAdmin === true
+//   → 当前只有 admin 一个账号符合，跟 backadmin「登录账号只有 admin」一致。
+//
+// Token：CacheService 存 ann_tok_<token> → {username, displayName}，TTL 6 小时
+//   （ScriptCache 硬上限 21600 秒）。缓存被清或过期 → 前端弹登录框重登。
+
+const AUTH_TOKEN_TTL = 21600;          // 6 小时
+const AUTH_TOKEN_PREFIX = 'ann_tok_';
+const AUTH_ERR = '账号或密码错误';
+const AUTH_EXPIRED = '未登录或登录已过期';
+const SD_MAIN_FOLDER = 'Squirrel Designer';
+
+/** 读 SD 的用户表。Drive 里可能有多个同名文件夹 → 遍历全部候选合并，别用 .next() 随机取 */
+function _sdUsers_() {
+  const all = [];
+  try {
+    const roots = DriveApp.getRootFolder().getFoldersByName(SD_MAIN_FOLDER);
+    while (roots.hasNext()) {
+      const main = roots.next();
+      const admins = main.getFoldersByName('admin');
+      if (!admins.hasNext()) continue;
+      const files = admins.next().getFilesByName('users.json');
+      if (!files.hasNext()) continue;
+      try {
+        const j = JSON.parse(files.next().getBlob().getDataAsString('UTF-8'));
+        if (j && Array.isArray(j.users)) all.push.apply(all, j.users);
+      } catch (e) { /* 读不动就跳过这个候选 */ }
+    }
+  } catch (e) {
+    console.log('read sd users failed: ' + e);
+  }
+  return all;
+}
+
+/** 账号密码 + isAdmin 校验 */
+function login(username, password) {
+  try {
+    const u = String(username || '').trim();
+    const p = String(password || '');
+    const users = _sdUsers_();
+    const hit = users.find(function (x) {
+      return x && x.username === u && x.password === p;
+    });
+    // ⚠️ 不区分「账号不存在」和「密码错」→ 统一文案，别泄露账号是否存在
+    if (!hit || hit.isAdmin !== true || hit.isActive === false) {
+      return { ok: false, error: AUTH_ERR };
+    }
+    const token = Utilities.getUuid() + Utilities.getUuid();
+    CacheService.getScriptCache().put(AUTH_TOKEN_PREFIX + token,
+      JSON.stringify({ username: hit.username, displayName: hit.displayName || hit.username }),
+      AUTH_TOKEN_TTL);
+    return {
+      ok: true,
+      token: token,
+      user: { username: hit.username, displayName: hit.displayName || hit.username }
+    };
+  } catch (error) {
+    return { ok: false, error: String(error) };
+  }
+}
+
+/** token → 用户；无效返回 null */
+function _authUser_(token) {
+  try {
+    const t = String(token || '').trim();
+    if (!t) return null;
+    const raw = CacheService.getScriptCache().get(AUTH_TOKEN_PREFIX + t);
+    if (!raw) return null;
+    const j = JSON.parse(raw);
+    return (j && j.username) ? j : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function _needAuth_(token) { return !_authUser_(token); }
+function _authErr_() { return { ok: false, error: AUTH_EXPIRED, needAuth: true }; }
+
+function whoami(token) {
+  const u = _authUser_(token);
+  if (!u) return _authErr_();
+  return { ok: true, user: { username: u.username, displayName: u.displayName || u.username } };
+}
+
+function logout(token) {
+  try {
+    const t = String(token || '').trim();
+    if (t) CacheService.getScriptCache().remove(AUTH_TOKEN_PREFIX + t);
+  } catch (e) { /* 缓存失败不影响主流程 */ }
+  return { ok: true };
 }
 
 
